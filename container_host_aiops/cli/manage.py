@@ -1,4 +1,10 @@
-"""``container-host-aiops manage`` — guarded writes (dry-run + double-confirm)."""
+"""``container-host-aiops manage`` — guarded writes (dry-run + double-confirm).
+
+Real execution is delegated to the ``@governed_tool``-wrapped functions in
+``mcp_server.tools.writes`` so that CLI writes are audited + undo-recorded on the
+SAME governance path as the MCP tools (the CLI keeps its own dry-run preview and
+human double-confirm on top).
+"""
 
 from __future__ import annotations
 
@@ -14,7 +20,6 @@ from container_host_aiops.cli._common import (
     console,
     double_confirm,
     dry_run_print,
-    get_connection,
 )
 
 manage_app = typer.Typer(
@@ -26,13 +31,17 @@ manage_app = typer.Typer(
 CidArg = Annotated[str, typer.Argument(help="Container id or name")]
 
 
+def _emit(result: dict) -> None:
+    console.print_json(json.dumps(result))
+
+
 @manage_app.command("restart")
 @cli_errors
 def restart(
     container_id: CidArg, target: TargetOption = None, dry_run: DryRunOption = False
 ) -> None:
     """Restart a container (dry-run + confirm)."""
-    from container_host_aiops.ops import writes as ops
+    from mcp_server.tools import writes as gov
 
     if dry_run:
         dry_run_print(
@@ -41,8 +50,7 @@ def restart(
         )
         return
     double_confirm("restart", container_id)
-    conn, _ = get_connection(target)
-    console.print_json(json.dumps(ops.restart_container(conn, container_id)))
+    _emit(gov.restart_container(container_id=container_id, target=target))
 
 
 @manage_app.command("stop")
@@ -51,14 +59,13 @@ def stop(
     container_id: CidArg, target: TargetOption = None, dry_run: DryRunOption = False
 ) -> None:
     """Stop a running container (undo: start; dry-run + confirm)."""
-    from container_host_aiops.ops import writes as ops
+    from mcp_server.tools import writes as gov
 
     if dry_run:
         dry_run_print(operation="stop_container", api_call=f"POST /containers/{container_id}/stop")
         return
     double_confirm("stop", container_id)
-    conn, _ = get_connection(target)
-    console.print_json(json.dumps(ops.stop_container(conn, container_id)))
+    _emit(gov.stop_container(container_id=container_id, target=target))
 
 
 @manage_app.command("start")
@@ -67,7 +74,7 @@ def start(
     container_id: CidArg, target: TargetOption = None, dry_run: DryRunOption = False
 ) -> None:
     """Start a stopped container (undo: stop; dry-run + confirm)."""
-    from container_host_aiops.ops import writes as ops
+    from mcp_server.tools import writes as gov
 
     if dry_run:
         dry_run_print(
@@ -76,8 +83,7 @@ def start(
         )
         return
     double_confirm("start", container_id)
-    conn, _ = get_connection(target)
-    console.print_json(json.dumps(ops.start_container(conn, container_id)))
+    _emit(gov.start_container(container_id=container_id, target=target))
 
 
 @manage_app.command("remove")
@@ -94,7 +100,7 @@ def remove(
     dry_run: DryRunOption = False,
 ) -> None:
     """Remove a container (captures full inspect first; no undo; dry-run + confirm)."""
-    from container_host_aiops.ops import writes as ops
+    from mcp_server.tools import writes as gov
 
     if dry_run:
         dry_run_print(
@@ -104,8 +110,9 @@ def remove(
         )
         return
     double_confirm("remove", container_id)
-    conn, _ = get_connection(target)
-    console.print_json(json.dumps(ops.remove_container(conn, container_id, force, volumes)))
+    _emit(gov.remove_container(
+        container_id=container_id, force=force, remove_volumes=volumes, target=target
+    ))
 
 
 @manage_app.command("prune-images")
@@ -118,29 +125,26 @@ def prune_images(
     dry_run: DryRunOption = False,
 ) -> None:
     """Prune images (dangling by default; dry-run lists candidates + confirm)."""
-    from container_host_aiops.ops import writes as ops
+    from mcp_server.tools import writes as gov
 
-    conn, _ = get_connection(target)
     if dry_run:
-        preview = ops.preview_prune_images(conn, dangling_only=not all_unused)
-        console.print_json(json.dumps({"dryRun": True, **preview}))
+        _emit(gov.prune_images(dangling_only=not all_unused, dry_run=True, target=target))
         return
     double_confirm("prune images on", "this host")
-    console.print_json(json.dumps(ops.prune_images(conn, dangling_only=not all_unused)))
+    _emit(gov.prune_images(dangling_only=not all_unused, target=target))
 
 
 @manage_app.command("prune-volumes")
 @cli_errors
 def prune_volumes(target: TargetOption = None, dry_run: DryRunOption = False) -> None:
     """Prune unreferenced volumes (dry-run lists candidates + confirm)."""
-    from container_host_aiops.ops import writes as ops
+    from mcp_server.tools import writes as gov
 
-    conn, _ = get_connection(target)
     if dry_run:
-        console.print_json(json.dumps({"dryRun": True, **ops.preview_prune_volumes(conn)}))
+        _emit(gov.prune_volumes(dry_run=True, target=target))
         return
     double_confirm("prune volumes on", "this host")
-    console.print_json(json.dumps(ops.prune_volumes(conn)))
+    _emit(gov.prune_volumes(target=target))
 
 
 @manage_app.command("update")
@@ -154,7 +158,7 @@ def update(
     dry_run: DryRunOption = False,
 ) -> None:
     """Update a container's resource limits (captures prior; undo restores; dry-run + confirm)."""
-    from container_host_aiops.ops import writes as ops
+    from mcp_server.tools import writes as gov
 
     resources = json.loads(resources_json)
     if dry_run:
@@ -165,8 +169,7 @@ def update(
         )
         return
     double_confirm("update resource limits on", container_id)
-    conn, _ = get_connection(target)
-    console.print_json(json.dumps(ops.update_container(conn, container_id, resources)))
+    _emit(gov.update_container(container_id=container_id, resources=resources, target=target))
 
 
 @manage_app.command("recreate-stack")
@@ -178,7 +181,7 @@ def recreate_stack(
     dry_run: DryRunOption = False,
 ) -> None:
     """Recreate (redeploy) a Portainer stack (no undo; dry-run + confirm)."""
-    from container_host_aiops.ops import writes as ops
+    from mcp_server.tools import writes as gov
 
     if dry_run:
         dry_run_print(
@@ -188,5 +191,4 @@ def recreate_stack(
         )
         return
     double_confirm("recreate stack", stack_id)
-    conn, _ = get_connection(target)
-    console.print_json(json.dumps(ops.recreate_stack(conn, stack_id, endpoint_id)))
+    _emit(gov.recreate_stack(stack_id=stack_id, endpoint_id=endpoint_id, target=target))

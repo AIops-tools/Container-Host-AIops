@@ -25,6 +25,7 @@ from typing import TYPE_CHECKING
 
 import yaml
 
+from container_host_aiops.governance.paths import ops_home
 from container_host_aiops.platform import (
     DEFAULT_DOCKER_SOCKET,
     DEFAULT_DOCKER_TCP_PORT,
@@ -39,7 +40,7 @@ from container_host_aiops.secretstore import SecretStoreError, get_secret, has_s
 if TYPE_CHECKING:
     from container_host_aiops.platform import Platform
 
-CONFIG_DIR = Path.home() / ".container-host-aiops"
+CONFIG_DIR = ops_home()
 CONFIG_FILE = CONFIG_DIR / "config.yaml"
 ENV_FILE = CONFIG_DIR / ".env"
 
