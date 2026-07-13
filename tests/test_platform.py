@@ -142,3 +142,27 @@ def test_request_raw_returns_bytes():
     conn = ContainerHostConnection(target, client=_Client())
     resp_bytes = conn.docker_get_raw("/containers/x/logs")
     assert resp_bytes == b"hello-bytes"
+
+
+# ── URL-encoding of agent-supplied path segments ─────────────────────────────
+
+
+@pytest.mark.unit
+def test_path_traversal_ids_are_url_encoded():
+    """An id carrying ``../`` must not reach the HTTP client as a raw path
+    traversal — agent-supplied segments are URL-encoded before interpolation."""
+    from unittest.mock import MagicMock
+
+    from container_host_aiops.ops import writes as ops
+
+    conn = MagicMock(name="conn")
+    conn.docker_get.return_value = {}
+    ops.stop_container(conn, "../images/prune")
+    path = conn.docker_post.call_args.args[0]
+    assert "../" not in path and path.startswith("/containers/")
+
+    conn2 = MagicMock(name="conn2")
+    conn2.get.return_value = {}
+    ops.recreate_stack(conn2, "../../endpoints/1", endpoint_id="9")
+    path = conn2.put.call_args.args[0]
+    assert "../" not in path and path.startswith("/api/stacks/")

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from container_host_aiops.ops._util import clean, clean_list, human_bytes, short_id
+from container_host_aiops.ops._util import _seg, clean, clean_list, human_bytes, short_id
 
 _MAX_ROWS = 500
 
@@ -54,9 +54,9 @@ def list_images(conn: Any, all_images: bool = False) -> dict:
 
 def inspect_image(conn: Any, image_id: str) -> dict:
     """[READ] Inspect an image plus its build history (layers, sizes, commands)."""
-    info = clean(conn.docker_get(f"/images/{image_id}/json"))
+    info = clean(conn.docker_get(f"/images/{_seg(image_id)}/json"))
     try:
-        history = clean_list(conn.docker_get(f"/images/{image_id}/history"))
+        history = clean_list(conn.docker_get(f"/images/{_seg(image_id)}/history"))
     except Exception:  # noqa: BLE001 — history is advisory
         history = []
     layers = [

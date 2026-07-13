@@ -24,6 +24,7 @@ by ``platform`` name, so adding a host family is a new descriptor, not a rewrite
 from __future__ import annotations
 
 from dataclasses import dataclass
+from urllib.parse import quote
 
 from container_host_aiops.governance import sanitize
 
@@ -94,7 +95,7 @@ class Platform:
                     "Portainer target needs an endpoint_id to reach the Docker "
                     "API (set 'endpoint_id' on the target, or list endpoints)."
                 )
-            return f"/api/endpoints/{eid}/docker"
+            return f"/api/endpoints/{quote(eid, safe='')}/docker"
         return ""
 
     def normalise(self, payload: object) -> object:

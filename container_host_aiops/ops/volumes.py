@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from container_host_aiops.ops._util import clean, clean_list, human_bytes
+from container_host_aiops.ops._util import _seg, clean, clean_list, human_bytes
 
 _MAX_ROWS = 500
 
@@ -40,7 +40,7 @@ def list_volumes(conn: Any) -> dict:
 
 def inspect_volume(conn: Any, name: str) -> dict:
     """[READ] Inspect one named volume (driver, mountpoint, options, usage)."""
-    return clean(conn.docker_get(f"/volumes/{name}"))
+    return clean(conn.docker_get(f"/volumes/{_seg(name)}"))
 
 
 def dangling_volumes(conn: Any) -> dict:

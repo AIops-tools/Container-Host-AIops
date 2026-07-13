@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from container_host_aiops.ops._util import clean, clean_list
+from container_host_aiops.ops._util import _seg, clean, clean_list
 
 _MAX_ROWS = 500
 
@@ -38,7 +38,7 @@ def list_networks(conn: Any) -> dict:
 
 def inspect_network(conn: Any, network_id: str) -> dict:
     """[READ] Inspect one network (driver, IPAM subnet/gateway, attached containers)."""
-    info = clean(conn.docker_get(f"/networks/{network_id}"))
+    info = clean(conn.docker_get(f"/networks/{_seg(network_id)}"))
     ipam = (info.get("IPAM") or {}).get("Config") or []
     containers = info.get("Containers") or {}
     return {

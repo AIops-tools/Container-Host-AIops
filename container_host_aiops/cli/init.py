@@ -16,6 +16,7 @@ import yaml
 
 from container_host_aiops.cli._common import cli_errors, console
 from container_host_aiops.config import CONFIG_DIR, CONFIG_FILE
+from container_host_aiops.governance.paths import ops_path
 from container_host_aiops.platform import (
     DEFAULT_DOCKER_SOCKET,
     DEFAULT_PORTAINER_PORT,
@@ -23,6 +24,43 @@ from container_host_aiops.platform import (
     PORTAINER,
 )
 from container_host_aiops.secretstore import SecretStore, resolve_master_password
+
+# Starter policy: keeps the secure-by-default gate (high/critical writes need a
+# named approver) explicit and editable, and shows the other rule kinds.
+DEFAULT_RULES_YAML = """\
+# container-host-aiops policy rules — hot-reloaded on change (no restart needed).
+# Kinds: deny rules, maintenance_window, risk_tiers (graduated autonomy).
+
+risk_tiers:
+  - name: high-risk-requires-approver
+    tier: dual
+    min_risk_level: high
+    reason: >-
+      High/critical writes need a named human approver — set
+      CONTAINER_HOST_AUDIT_APPROVED_BY (and CONTAINER_HOST_AUDIT_RATIONALE)
+      before the call.
+
+# deny:
+#   - name: no-prod-removes
+#     operations: ["remove_*", "prune_*"]
+#     environments: ["production"]
+#     reason: "Container removes/prunes in production go through change management."
+
+# maintenance_window:
+#   start: "22:00"
+#   end: "06:00"
+"""
+
+
+def _write_default_rules() -> None:
+    """Seed a starter rules.yaml (only when none exists) so the policy layer
+    is explicit from day one; never overwrites an operator-authored file."""
+    rules_path = ops_path("rules.yaml")
+    if rules_path.exists():
+        return
+    rules_path.parent.mkdir(parents=True, exist_ok=True)
+    rules_path.write_text(DEFAULT_RULES_YAML, "utf-8")
+    console.print(f"[green]✓ Wrote default policy rules:[/] {rules_path}")
 
 
 def _load_existing_targets() -> list[dict]:
@@ -92,8 +130,9 @@ def init_cmd() -> None:
             entry["endpoint_id"] = typer.prompt(
                 "Managed Docker endpoint id (for proxied Docker reads)", default="1"
             ).strip()
+            console.print("[dim]Lab/self-signed setups can answer No here.[/]")
             entry["verify_ssl"] = typer.confirm(
-                "Verify TLS certificate? (No for self-signed)", default=False
+                "Verify TLS certificate? (No for self-signed)", default=True
             )
             if store is None:
                 console.print("\n[bold]Master password[/] (encrypts secrets.enc)")
@@ -114,6 +153,7 @@ def init_cmd() -> None:
         if not typer.confirm("\nAdd another target?", default=False):
             break
 
+    _write_default_rules()
     console.print(f"\n[green]✓ Setup complete.[/] Config: {CONFIG_FILE}")
     console.print(
         "[dim]Tip: export CONTAINER_HOST_AIOPS_MASTER_PASSWORD=... in your shell "

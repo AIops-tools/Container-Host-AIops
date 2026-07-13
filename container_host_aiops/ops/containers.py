@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import Any
 
 from container_host_aiops.ops import _metrics
-from container_host_aiops.ops._util import clean, clean_list, container_name, short_id
+from container_host_aiops.ops._util import _seg, clean, clean_list, container_name, short_id
 
 _MAX_ROWS = 500
 
@@ -46,7 +46,7 @@ def list_containers(conn: Any, all_states: bool = True) -> dict:
 
 def inspect_container(conn: Any, container_id: str) -> dict:
     """[READ] Full inspect of one container (id/name, config, state, mounts, network)."""
-    return clean(conn.docker_get(f"/containers/{container_id}/json"))
+    return clean(conn.docker_get(f"/containers/{_seg(container_id)}/json"))
 
 
 def container_logs(conn: Any, container_id: str, tail: int = 100) -> dict:
@@ -57,7 +57,7 @@ def container_logs(conn: Any, container_id: str, tail: int = 100) -> dict:
     """
     tail = max(1, min(int(tail), 2000))
     raw = conn.docker_get_raw(
-        f"/containers/{container_id}/logs",
+        f"/containers/{_seg(container_id)}/logs",
         params={"stdout": "true", "stderr": "true", "tail": str(tail), "timestamps": "false"},
     )
     text = _demux_stream(raw if isinstance(raw, (bytes, bytearray)) else str(raw).encode())
@@ -76,7 +76,9 @@ def container_stats(conn: Any, container_id: str) -> dict:
     Percentages are computed from Docker's raw counters with the same formula
     ``docker stats`` uses, so the numbers are explainable.
     """
-    stats = clean(conn.docker_get(f"/containers/{container_id}/stats", params={"stream": "false"}))
+    stats = clean(
+        conn.docker_get(f"/containers/{_seg(container_id)}/stats", params={"stream": "false"})
+    )
     used, limit = _metrics.mem_usage_and_limit(stats)
     return {
         "id": short_id(container_id),
@@ -90,7 +92,7 @@ def container_stats(conn: Any, container_id: str) -> dict:
 
 def container_top(conn: Any, container_id: str) -> dict:
     """[READ] Processes running inside a container (like ``docker top``)."""
-    data = clean(conn.docker_get(f"/containers/{container_id}/top"))
+    data = clean(conn.docker_get(f"/containers/{_seg(container_id)}/top"))
     titles = data.get("Titles") or []
     processes = data.get("Processes") or []
     return {
@@ -113,7 +115,7 @@ def restart_summary(conn: Any, all_states: bool = True) -> dict:
     for c in listing:
         cid = c.get("Id")
         try:
-            info = clean(conn.docker_get(f"/containers/{cid}/json"))
+            info = clean(conn.docker_get(f"/containers/{_seg(cid)}/json"))
         except Exception:  # noqa: BLE001 — one bad container must not fail the summary
             continue
         state = info.get("State") or {}

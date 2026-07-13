@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Any
 
 from container_host_aiops.config import PORTAINER
-from container_host_aiops.ops._util import clean, clean_list
+from container_host_aiops.ops._util import _seg, clean, clean_list
 
 _MAX_ROWS = 500
 
@@ -66,4 +66,4 @@ def list_stacks(conn: Any) -> dict:
 def stack_detail(conn: Any, stack_id: str) -> dict:
     """[READ] One Portainer stack in detail (env, entrypoint, resource control)."""
     _require_portainer(conn, "stack_detail")
-    return clean(conn.get(f"/api/stacks/{stack_id}"))
+    return clean(conn.get(f"/api/stacks/{_seg(stack_id)}"))

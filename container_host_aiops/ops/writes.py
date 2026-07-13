@@ -25,7 +25,7 @@ from typing import Any
 from container_host_aiops.ops import images as img
 from container_host_aiops.ops import volumes as vol
 from container_host_aiops.ops._metrics import host_cpu_limit, host_mem_limit_bytes
-from container_host_aiops.ops._util import clean, container_name, human_bytes, short_id
+from container_host_aiops.ops._util import _seg, clean, container_name, human_bytes, short_id
 
 # Resource keys accepted by POST /containers/{id}/update.
 _UPDATE_KEYS = (
@@ -37,7 +37,7 @@ _UPDATE_KEYS = (
 def _inspect_safe(conn: Any, container_id: str) -> dict:
     """Best-effort inspect for before-state capture (never raises)."""
     try:
-        info = clean(conn.docker_get(f"/containers/{container_id}/json"))
+        info = clean(conn.docker_get(f"/containers/{_seg(container_id)}/json"))
         return info if isinstance(info, dict) else {}
     except Exception:  # noqa: BLE001 — before-state is advisory for the audit trail
         return {}
@@ -47,7 +47,9 @@ def restart_container(conn: Any, container_id: str, timeout: int = 10) -> dict:
     """[WRITE] Restart a container, capturing its prior state. No meaningful inverse."""
     prior = _inspect_safe(conn, container_id)
     state = prior.get("State") or {}
-    conn.docker_post(f"/containers/{container_id}/restart", params={"t": str(max(0, int(timeout)))})
+    conn.docker_post(
+        f"/containers/{_seg(container_id)}/restart", params={"t": str(max(0, int(timeout)))}
+    )
     return {
         "action": "restart_container",
         "id": short_id(container_id),
@@ -60,7 +62,9 @@ def stop_container(conn: Any, container_id: str, timeout: int = 10) -> dict:
     """[WRITE] Stop a running container. Inverse: start it."""
     prior = _inspect_safe(conn, container_id)
     state = prior.get("State") or {}
-    conn.docker_post(f"/containers/{container_id}/stop", params={"t": str(max(0, int(timeout)))})
+    conn.docker_post(
+        f"/containers/{_seg(container_id)}/stop", params={"t": str(max(0, int(timeout)))}
+    )
     return {
         "action": "stop_container",
         "id": short_id(container_id),
@@ -73,7 +77,7 @@ def start_container(conn: Any, container_id: str) -> dict:
     """[WRITE] Start a stopped container. Inverse: stop it."""
     prior = _inspect_safe(conn, container_id)
     state = prior.get("State") or {}
-    conn.docker_post(f"/containers/{container_id}/start")
+    conn.docker_post(f"/containers/{_seg(container_id)}/start")
     return {
         "action": "start_container",
         "id": short_id(container_id),
@@ -92,7 +96,7 @@ def remove_container(
     """
     prior = _inspect_safe(conn, container_id)
     conn.docker_delete(
-        f"/containers/{container_id}",
+        f"/containers/{_seg(container_id)}",
         params={"force": "true" if force else "false", "v": "true" if remove_volumes else "false"},
     )
     return {
@@ -177,7 +181,7 @@ def update_container(conn: Any, container_id: str, resources: dict) -> dict:
     prior_limits = {"Memory": host_mem_limit_bytes(prior_inspect)}
     prior_limits.update(host_cpu_limit(prior_inspect))
     prior = {k: prior_limits.get(k) for k in payload if k in prior_limits}
-    conn.docker_post(f"/containers/{container_id}/update", json=payload)
+    conn.docker_post(f"/containers/{_seg(container_id)}/update", json=payload)
     return {
         "action": "update_container",
         "id": short_id(container_id),
@@ -194,12 +198,12 @@ def recreate_stack(conn: Any, stack_id: str, endpoint_id: str | None = None) -> 
     recreate it; there is no clean inverse for a redeploy.
     """
     try:
-        prior = clean(conn.get(f"/api/stacks/{stack_id}"))
+        prior = clean(conn.get(f"/api/stacks/{_seg(stack_id)}"))
     except Exception:  # noqa: BLE001 — before-state is advisory
         prior = {}
     eid = endpoint_id or prior.get("EndpointId")
     params = {"endpointId": str(eid)} if eid else None
-    conn.put(f"/api/stacks/{stack_id}/git/redeploy", params=params, json={})
+    conn.put(f"/api/stacks/{_seg(stack_id)}/git/redeploy", params=params, json={})
     return {
         "action": "recreate_stack",
         "stackId": stack_id,

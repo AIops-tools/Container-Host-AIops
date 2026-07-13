@@ -3,15 +3,27 @@
 Docker Engine API list endpoints return a bare JSON array; inspect endpoints
 return an object; a few management responses wrap items under a key. ``as_list``
 normalises them. All host-returned text reaches the caller only after
-``sanitize()`` (prompt-injection defense), applied via ``clean`` / ``clean_list``
+``sanitize()`` (bounded length, output hygiene), applied via ``clean`` / ``clean_list``
 at the read boundary.
 """
 
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import quote
 
 from container_host_aiops.governance import sanitize
+
+
+def _seg(value: Any) -> str:
+    """URL-encode one REST path segment.
+
+    Agent-supplied identifiers (container/image/network ids, volume names,
+    stack ids) are interpolated into URL paths; encoding with ``safe=""``
+    ensures ``/``, ``..`` sequences, ``?`` etc. cannot rewrite the request path.
+    """
+    return quote(str(value), safe="")
+
 
 _MAX_STR = 512
 _MAX_DEPTH = 8

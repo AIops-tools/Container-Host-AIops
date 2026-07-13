@@ -79,10 +79,17 @@ def test_all_modules_import():
 
 
 @pytest.mark.unit
-def test_version():
+def test_version_matches_pyproject():
+    """__version__ is single-sourced from package metadata; it must track
+    pyproject.toml so a release bump can never ship a stale self-report."""
+    import tomllib
+    from pathlib import Path
+
     import container_host_aiops
 
-    assert container_host_aiops.__version__ == "0.1.0"
+    pyproject = Path(__file__).resolve().parents[1] / "pyproject.toml"
+    expected = tomllib.loads(pyproject.read_text("utf-8"))["project"]["version"]
+    assert container_host_aiops.__version__ == expected
 
 
 @pytest.mark.unit
