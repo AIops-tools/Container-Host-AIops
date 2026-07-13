@@ -99,6 +99,7 @@ Pass data straight to the analysis tools — `restart_loop_rca(containers=[...])
 
 - Every tool is audited to `~/.container-host-aiops/audit.db` (relocatable via `CONTAINER_HOST_AIOPS_HOME`).
 - High-risk ops (remove / prune / recreate) can require a named approver: set `CONTAINER_HOST_AUDIT_APPROVED_BY` and `CONTAINER_HOST_AUDIT_RATIONALE` (the env-var names the bundled harness reads).
+- **Secure by default (v0.2.0+)**: with no `~/.container-host-aiops/rules.yaml`, high/critical operations are denied unless `CONTAINER_HOST_AUDIT_APPROVED_BY` names an approver (set `CONTAINER_HOST_AUDIT_RATIONALE` too). `container-host-aiops init` seeds a starter rules.yaml; an operator-authored rules file is honoured as-is.
 - Writes support `--dry-run` / `dry_run=True` and double confirmation at the CLI; prune previews list what would be removed + reclaimable bytes.
 - Mutating/reversible writes fetch the real before-state and record an inverse descriptor (stop→start, update_container→restore prior limits); irreversible ops record only the before-state.
 
