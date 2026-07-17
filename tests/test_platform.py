@@ -6,9 +6,13 @@ from container_host_aiops.config import TargetConfig
 from container_host_aiops.connection import ContainerHostApiError, ContainerHostConnection
 from container_host_aiops.platform import (
     DOCKER,
+    LIBPOD_PREFIX,
+    PODMAN,
     PORTAINER,
+    default_podman_socket,
     get_platform,
     platform_names,
+    podman_socket_candidates,
 )
 
 
@@ -23,7 +27,7 @@ def test_docker_and_portainer_registered():
 @pytest.mark.unit
 def test_unknown_platform_raises_with_registered_names():
     with pytest.raises(ValueError, match="docker"):
-        get_platform("podman")
+        get_platform("kubernetes")
 
 
 @pytest.mark.unit
@@ -40,6 +44,120 @@ def test_docker_platform_no_auth_and_empty_prefix():
     p = get_platform(DOCKER)
     assert "X-API-Key" not in p.auth_headers("ignored")
     assert p.docker_prefix() == ""
+
+
+# ── podman platform ──────────────────────────────────────────────────────────
+
+
+@pytest.mark.unit
+def test_podman_registered_with_label():
+    assert PODMAN in platform_names()
+    assert "Podman" in get_platform(PODMAN).label
+
+
+@pytest.mark.unit
+def test_podman_reuses_docker_compat_layer_no_auth_no_prefix():
+    """Podman's compat endpoints sit at the root — same as Docker, so the
+    docker_* path templates are reused wholesale (empty prefix, no auth)."""
+    p = get_platform(PODMAN)
+    assert p.proxies_docker is False
+    assert p.docker_prefix() == ""
+    assert "X-API-Key" not in p.auth_headers("ignored")
+
+
+@pytest.mark.unit
+def test_podman_supports_libpod_and_prefixes_native_path():
+    p = get_platform(PODMAN)
+    assert p.supports_libpod is True
+    assert p.libpod_path("/pods/json") == f"{LIBPOD_PREFIX}/pods/json"
+
+
+@pytest.mark.unit
+def test_libpod_path_raises_on_docker_and_portainer():
+    for name in (DOCKER, PORTAINER):
+        p = get_platform(name)
+        assert p.supports_libpod is False
+        with pytest.raises(ValueError, match="Podman-only"):
+            p.libpod_path("/pods/json")
+
+
+@pytest.mark.unit
+def test_podman_socket_autodetection_order_prefers_rootless(monkeypatch, tmp_path):
+    """With XDG_RUNTIME_DIR set, the rootless socket is probed before rootful."""
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
+    candidates = podman_socket_candidates()
+    assert candidates[0] == str(tmp_path / "podman/podman.sock")
+    assert candidates[-1] == "/run/podman/podman.sock"
+
+
+@pytest.mark.unit
+def test_default_podman_socket_returns_existing_rootless(monkeypatch, tmp_path):
+    sock = tmp_path / "podman" / "podman.sock"
+    sock.parent.mkdir(parents=True)
+    sock.write_text("")  # stand-in for the socket file
+    monkeypatch.setenv("XDG_RUNTIME_DIR", str(tmp_path))
+    assert default_podman_socket() == str(sock)
+
+
+@pytest.mark.unit
+def test_default_podman_socket_falls_back_to_rootful(monkeypatch):
+    monkeypatch.delenv("XDG_RUNTIME_DIR", raising=False)
+    assert default_podman_socket() == "/run/podman/podman.sock"
+
+
+@pytest.mark.unit
+def test_podman_target_defaults_to_autodetected_socket(monkeypatch):
+    monkeypatch.delenv("XDG_RUNTIME_DIR", raising=False)
+    t = TargetConfig(name="pod1", platform="podman")
+    assert t.platform == "podman"
+    assert t.uses_unix_socket is True
+    assert t.socket_path == "/run/podman/podman.sock"
+    assert t.api_base == "http://localhost"
+    assert t.requires_secret is False
+
+
+@pytest.mark.unit
+def test_podman_tcp_target_builds_host_base():
+    t = TargetConfig(name="pod2", platform="podman", host="10.0.0.9", verify_ssl=False)
+    assert t.uses_unix_socket is False
+    assert t.api_base == "http://10.0.0.9:2375"
+
+
+@pytest.mark.unit
+def test_podman_libpod_get_prepends_libpod_prefix():
+    target = TargetConfig(name="pod1", platform="podman")
+    seen = {}
+
+    class _Client:
+        def request(self, method, path, **k):
+            seen["path"] = path
+            return _Resp(200, [{"Id": "pod-a"}], content=b"[]")
+
+        def close(self):
+            pass
+
+    conn = ContainerHostConnection(target, client=_Client())
+    conn.libpod_get("/pods/json")
+    assert seen["path"] == f"{LIBPOD_PREFIX}/pods/json"
+
+
+@pytest.mark.unit
+def test_podman_docker_get_uses_root_path_no_prefix():
+    """A compat read on a podman target hits the unprefixed Docker path."""
+    target = TargetConfig(name="pod1", platform="podman")
+    seen = {}
+
+    class _Client:
+        def request(self, method, path, **k):
+            seen["path"] = path
+            return _Resp(200, [{"Id": "c1"}], content=b"[]")
+
+        def close(self):
+            pass
+
+    conn = ContainerHostConnection(target, client=_Client())
+    conn.docker_get("/containers/json")
+    assert seen["path"] == "/containers/json"
 
 
 @pytest.mark.unit

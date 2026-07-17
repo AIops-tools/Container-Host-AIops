@@ -13,16 +13,19 @@ from container_host_aiops.cli.init import init_cmd
 from container_host_aiops.cli.manage import manage_app
 from container_host_aiops.cli.network import network_app
 from container_host_aiops.cli.overview import overview_cmd
+from container_host_aiops.cli.pod import pod_app
 from container_host_aiops.cli.secret import secret_app
 from container_host_aiops.cli.stack import stack_app
 from container_host_aiops.cli.system import system_app
+from container_host_aiops.cli.undo import undo_app
 from container_host_aiops.cli.volume import volume_app
 
 app = typer.Typer(
     name="container-host-aiops",
-    help="Governed AI-ops for Docker + Portainer container hosts: container / "
-    "image / volume / network / system reads, flagship analyses, and guarded "
-    "lifecycle + prune writes with a built-in governance harness.",
+    help="Governed AI-ops for Docker + Portainer + Podman container hosts: "
+    "container / image / volume / network / system reads, compose-stack and "
+    "Podman-pod rollups, flagship analyses, and guarded lifecycle + prune writes "
+    "with a built-in governance harness.",
     no_args_is_help=True,
 )
 
@@ -32,9 +35,11 @@ app.add_typer(volume_app, name="volume")
 app.add_typer(network_app, name="network")
 app.add_typer(system_app, name="system")
 app.add_typer(stack_app, name="stack")
+app.add_typer(pod_app, name="pod")
 app.add_typer(analyze_app, name="analyze")
 app.add_typer(manage_app, name="manage")
 app.add_typer(secret_app, name="secret")
+app.add_typer(undo_app, name="undo")
 app.command("init")(init_cmd)
 app.command("overview")(overview_cmd)
 app.command("doctor")(doctor_cmd)

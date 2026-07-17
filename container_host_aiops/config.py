@@ -2,9 +2,12 @@
 
 Loads container-host connection targets from a YAML config file. Each target
 names its ``platform`` — ``docker`` (the Docker Engine API, spoken directly over
-a unix socket or a TCP host) or ``portainer`` (the Portainer management API,
-which also proxies the Docker Engine API of each managed endpoint). One config
-can span many hosts. See :mod:`container_host_aiops.platform`.
+a unix socket or a TCP host), ``portainer`` (the Portainer management API, which
+also proxies the Docker Engine API of each managed endpoint), or ``podman`` (a
+Podman service socket — rootful ``/run/podman/podman.sock`` or rootless
+``$XDG_RUNTIME_DIR/podman/podman.sock``, autodetected — speaking the
+Docker-compatible API plus libpod-native endpoints). One config can span many
+hosts. See :mod:`container_host_aiops.platform`.
 
 The secret is only meaningful for **Portainer** (its ``X-API-Key`` token). It is
 NEVER stored in the config file or in plaintext on disk: it lives in the
@@ -32,7 +35,9 @@ from container_host_aiops.platform import (
     DEFAULT_DOCKER_TLS_PORT,
     DEFAULT_PORTAINER_PORT,
     DOCKER,
+    PODMAN,
     PORTAINER,
+    default_podman_socket,
     get_platform,
 )
 from container_host_aiops.secretstore import SecretStoreError, get_secret, has_store
@@ -90,6 +95,10 @@ class TargetConfig:
       * ``portainer`` — the Portainer management API at ``host``:``port`` (TLS).
         ``endpoint_id`` names the managed Docker endpoint whose Engine API is
         proxied, so container/image/volume reads work through Portainer too.
+      * ``podman`` — a Podman service socket. With no ``host`` set, the connection
+        goes over the autodetected rootless/rootful socket (``socket_path`` when
+        given); Docker-compat reads/writes reuse the Docker paths, and libpod-only
+        reads (pods) use the libpod prefix. Needs no secret (socket permissions).
 
     The Portainer API token comes from the encrypted secret store, never the
     config file; a direct Docker socket target needs no secret.
@@ -107,8 +116,12 @@ class TargetConfig:
     def __post_init__(self) -> None:
         # Fail fast on an unknown platform (validated at the trust boundary).
         get_platform(self.platform)
-        if self.platform == DOCKER and not self.host and not self.socket_path:
-            object.__setattr__(self, "socket_path", DEFAULT_DOCKER_SOCKET)
+        if not self.host and not self.socket_path:
+            if self.platform == DOCKER:
+                object.__setattr__(self, "socket_path", DEFAULT_DOCKER_SOCKET)
+            elif self.platform == PODMAN:
+                # Autodetect the rootless/rootful Podman socket (first existing).
+                object.__setattr__(self, "socket_path", default_podman_socket())
         if not self.port:
             if self.platform == PORTAINER:
                 object.__setattr__(self, "port", DEFAULT_PORTAINER_PORT)
@@ -131,7 +144,7 @@ class TargetConfig:
 
     @property
     def uses_unix_socket(self) -> bool:
-        return self.platform == DOCKER and not self.host and bool(self.socket_path)
+        return self.platform in (DOCKER, PODMAN) and not self.host and bool(self.socket_path)
 
     @property
     def api_base(self) -> str:

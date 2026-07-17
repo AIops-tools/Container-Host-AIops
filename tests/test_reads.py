@@ -15,6 +15,7 @@ from container_host_aiops.ops import (
     images,
     networks,
     overview,
+    pods,
     stacks,
     system,
     volumes,
@@ -22,7 +23,7 @@ from container_host_aiops.ops import (
 
 
 class _Conn:
-    """Fake connection: docker_get/get look up canned responses by path."""
+    """Fake connection: docker_get/get/libpod_get look up canned responses by path."""
 
     def __init__(self, responses, raw=None, platform="docker", name="t"):
         self._responses = responses
@@ -39,6 +40,11 @@ class _Conn:
 
     def docker_get_raw(self, path, params=None):
         return self._raw.get(path, b"")
+
+    def libpod_get(self, path, params=None):
+        # Mirror the real connection: a non-podman target cannot reach libpod.
+        self.target.platform_obj.libpod_path(path)
+        return self._responses[path]
 
     def get(self, path, **_kw):
         return self._responses[path]
@@ -226,6 +232,164 @@ def test_list_stacks_on_portainer_target():
     out = stacks.list_stacks(conn)
     assert out["total"] == 1
     assert out["stacks"][0]["name"] == "web"
+
+
+# ── podman pods (libpod, podman-only) ─────────────────────────────────────────
+
+
+def _pods_conn(platform="podman"):
+    return _Conn(
+        {
+            "/pods/json": [
+                {"Id": "pod-aaaa1111", "Name": "web-pod", "Status": "Running",
+                 "InfraId": "inf-1", "Containers": [
+                     {"Id": "c1", "Status": "running"}, {"Id": "c2", "Status": "exited"}]},
+                {"Id": "pod-bbbb2222", "Name": "idle-pod", "Status": "Exited",
+                 "Containers": []},
+            ]
+        },
+        platform=platform,
+    )
+
+
+@pytest.mark.unit
+def test_list_pods_on_podman_target():
+    out = pods.list_pods(_pods_conn())
+    assert out["total"] == 2
+    assert out["byStatus"]["running"] == 1
+    top = out["pods"][0]
+    assert top["name"] == "web-pod"
+    assert top["numContainers"] == 2
+    assert top["containersByStatus"] == {"running": 1, "exited": 1}
+
+
+@pytest.mark.unit
+def test_list_pods_teaching_errors_on_docker():
+    conn = _Conn({}, platform="docker")
+    with pytest.raises(ValueError, match="podman"):
+        pods.list_pods(conn)
+
+
+@pytest.mark.unit
+def test_list_pods_teaching_errors_on_portainer():
+    conn = _Conn({}, platform="portainer")
+    with pytest.raises(ValueError, match="podman"):
+        pods.list_pods(conn)
+
+
+# ── compose-stack awareness (docker AND podman) ───────────────────────────────
+
+
+def _compose_rows():
+    return [
+        {"Id": "a1", "Names": ["/shop-web-1"], "State": "running",
+         "Status": "Up 2h", "Labels": {
+             "com.docker.compose.project": "shop", "com.docker.compose.service": "web"}},
+        {"Id": "a2", "Names": ["/shop-db-1"], "State": "exited",
+         "Status": "Exited (1)", "Labels": {
+             "com.docker.compose.project": "shop", "com.docker.compose.service": "db"}},
+        {"Id": "b1", "Names": ["/blog-web-1"], "State": "running",
+         "Status": "Up 5m", "Labels": {
+             "com.docker.compose.project": "blog", "com.docker.compose.service": "web"}},
+        {"Id": "c1", "Names": ["/loose"], "State": "running", "Status": "Up",
+         "Labels": {}},
+    ]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("platform", ["docker", "podman"])
+def test_list_compose_stacks_groups_and_rolls_up_health(platform):
+    conn = _Conn({"/containers/json": _compose_rows()}, platform=platform)
+    out = stacks.list_compose_stacks(conn)
+    assert out["totalStacks"] == 2
+    assert out["ungroupedContainers"] == 1
+    by_project = {s["project"]: s for s in out["stacks"]}
+    # blog: single running container → healthy
+    assert by_project["blog"]["health"] == "healthy"
+    # shop: one running + one exited → degraded, two services
+    assert by_project["shop"]["health"] == "degraded"
+    assert by_project["shop"]["serviceCount"] == 2
+    assert by_project["shop"]["services"] == ["db", "web"]
+
+
+@pytest.mark.unit
+def test_list_compose_stacks_down_when_none_running():
+    rows = [
+        {"Id": "x", "Names": ["/svc"], "State": "exited", "Status": "Exited (0)",
+         "Labels": {"com.docker.compose.project": "dead",
+                    "com.docker.compose.service": "svc"}},
+    ]
+    conn = _Conn({"/containers/json": rows}, platform="podman")
+    out = stacks.list_compose_stacks(conn)
+    assert out["stacks"][0]["health"] == "down"
+
+
+# ── podman parity: Docker-compat reads behave identically on a podman target ──
+
+
+@pytest.mark.unit
+def test_list_containers_parity_on_podman_target():
+    conn = _Conn({
+        "/containers/json": [
+            {"Id": "a1", "Names": ["/web"], "State": "running", "Image": "nginx"},
+            {"Id": "b2", "Names": ["/db"], "State": "exited", "Image": "pg"},
+        ]
+    }, platform="podman")
+    out = containers.list_containers(conn)
+    assert out["total"] == 2
+    assert out["byState"]["running"] == 1
+
+
+@pytest.mark.unit
+def test_restart_summary_parity_on_podman_target():
+    conn = _Conn({
+        "/containers/json": [{"Id": "a"}],
+        "/containers/a/json": {
+            "Id": "a", "Name": "/loopy",
+            "State": {"Status": "restarting", "RestartCount": 5, "ExitCode": 1},
+        },
+    }, platform="podman")
+    out = containers.restart_summary(conn)
+    assert out["withRestarts"] == 1
+    assert out["containers"][0]["restartCount"] == 5
+
+
+@pytest.mark.unit
+def test_restart_loop_rca_pull_parity_on_podman_target():
+    """The flagship restart-loop RCA pulls live data through the compat layer on
+    a podman target exactly as it does on docker."""
+    conn = _Conn({
+        "/containers/json": [{"Id": "a"}],
+        "/containers/a/json": {
+            "Id": "a", "Name": "/crash",
+            "State": {"Status": "restarting", "RestartCount": 6, "ExitCode": 137,
+                      "OOMKilled": True},
+        },
+    }, raw={"/containers/a/logs": b"boom\n"}, platform="podman")
+    rows, logs = analyses.pull_restart_data(conn)
+    out = analyses.restart_loop_rca(rows, logs)
+    assert out["loopingCount"] == 1
+    assert "memory" in out["looping"][0]["cause"].lower()
+
+
+@pytest.mark.unit
+def test_lifecycle_write_parity_on_podman_target():
+    """A lifecycle write (stop) captures before-state and fires the compat POST
+    on a podman target, identically to docker."""
+    from unittest.mock import MagicMock
+
+    from container_host_aiops.ops import writes
+
+    conn = MagicMock(name="conn")
+    conn.target = TargetConfig(name="pod1", platform="podman")
+    conn.docker_get.return_value = {"Name": "/web", "State": {"Running": True}}
+    conn.docker_post.return_value = {}
+    out = writes.stop_container(conn, "web")
+    assert out["action"] == "stop_container"
+    assert out["name"] == "web"
+    assert out["priorState"] == {"running": True}
+    conn.docker_post.assert_called_once()
+    assert conn.docker_post.call_args.args[0] == "/containers/web/stop"
 
 
 # ── overview ─────────────────────────────────────────────────────────────────

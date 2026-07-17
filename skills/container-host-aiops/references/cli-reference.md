@@ -1,14 +1,15 @@
 # container-host-aiops CLI reference
 
-> Preview / mock-only. Covers the Docker Engine API (unix socket or TCP) and
-> Portainer (management API); responses are mocked and need live verification.
+> Preview / mock-only. Covers the Docker Engine API (unix socket or TCP),
+> Portainer (management API), and Podman (rootful/rootless socket — Docker-compat
+> + libpod); responses are mocked and need live verification.
 
 ## Setup
 
 ```bash
-container-host-aiops init                      # interactive wizard (Docker socket or Portainer)
+container-host-aiops init                      # interactive wizard (Docker/Podman socket or Portainer)
 container-host-aiops doctor                     # verify config, secrets, connectivity
-                                                #   Docker: GET /version · Portainer: GET /api/endpoints
+                                                #   Docker/Podman: GET /version · Portainer: GET /api/endpoints
 container-host-aiops doctor --skip-auth         # config/secret checks only (no connectivity)
 ```
 
@@ -64,12 +65,19 @@ container-host-aiops system df                             # disk-usage breakdow
 container-host-aiops system events [--since 3600] [--type container]
 ```
 
-## Stacks (Portainer target)
+## Stacks
 
 ```bash
-container-host-aiops stack endpoints
-container-host-aiops stack list
-container-host-aiops stack detail <stack_id>
+container-host-aiops stack endpoints          # Portainer target
+container-host-aiops stack list               # Portainer target
+container-host-aiops stack detail <stack_id>  # Portainer target
+container-host-aiops stack compose            # Compose projects by label (docker OR podman) + health rollup
+```
+
+## Pods (Podman target)
+
+```bash
+container-host-aiops pod list                 # Podman pods (libpod); errors on docker/portainer
 ```
 
 ## Analyses (flagship)
@@ -102,5 +110,5 @@ container-host-aiops mcp          # stdio transport (or: container-host-aiops-mc
 ## Notes
 
 - Every command accepts `--target <name>` (`-t`) to pick a configured host; omit for the default (first) target.
-- The full 34-tool surface (all reads + writes) is exposed through the MCP server; the CLI is a convenient subset.
-- `stack` commands and `recreate-stack` require a `portainer` target.
+- The full 36-tool surface (all reads + writes) is exposed through the MCP server; the CLI is a convenient subset.
+- `stack endpoints`/`list`/`detail` and `recreate-stack` require a `portainer` target; `stack compose` works on docker or podman; `pod list` requires a `podman` target.

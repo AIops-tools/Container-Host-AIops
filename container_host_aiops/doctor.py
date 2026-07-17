@@ -73,7 +73,7 @@ def run_doctor(skip_auth: bool = False) -> int:
         _console.print("[dim]Skipping connectivity check (--skip-auth).[/]")
         return 1 if problems else 0
 
-    from container_host_aiops.config import PORTAINER
+    from container_host_aiops.config import PODMAN, PORTAINER
     from container_host_aiops.connection import ConnectionManager
 
     mgr = ConnectionManager(config)
@@ -84,6 +84,14 @@ def run_doctor(skip_auth: bool = False) -> int:
                 endpoints = conn.get("/api/endpoints")
                 count = len(endpoints) if isinstance(endpoints, list) else 0
                 detail = f"{count} endpoint(s) visible"
+            elif target.platform == PODMAN:
+                version = conn.docker_get("/version")
+                pods = conn.libpod_get("/pods/json")
+                pod_count = len(pods) if isinstance(pods, list) else 0
+                detail = (
+                    f"Podman (Docker-compat API {version.get('ApiVersion', '?')}, "
+                    f"{pod_count} pod(s))"
+                )
             else:
                 version = conn.docker_get("/version")
                 detail = f"Docker API {version.get('ApiVersion', '?')}"

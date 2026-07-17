@@ -123,7 +123,7 @@ def test_init_portainer_stores_token_encrypted_not_in_config(init_home):
 def test_init_rejects_unknown_platform_then_reprompts(init_home):
     result = _run_init("x1\nlxd\nx1\n\n\n\nn\nn\n")
     assert result.exit_code == 0, result.output
-    assert "Platform must be 'docker' or 'portainer'." in result.output
+    assert "Platform must be 'docker', 'portainer', or 'podman'." in result.output
     raw = yaml.safe_load((init_home / "config.yaml").read_text("utf-8"))
     assert [t["name"] for t in raw["targets"]] == ["x1"]
 

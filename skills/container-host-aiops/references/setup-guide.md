@@ -1,7 +1,7 @@
 # container-host-aiops setup & security guide
 
-> Preview / mock-only — not yet validated against a live Docker daemon or
-> Portainer server. `container-host-aiops doctor` is the fastest live check.
+> Preview / mock-only — not yet validated against a live Docker daemon,
+> Portainer, or Podman server. `container-host-aiops doctor` is the fastest live check.
 
 ## 1. Install
 
@@ -19,6 +19,11 @@ uv tool install container-host-aiops     # or: pipx install container-host-aiops
 - **Portainer** — the Portainer host + HTTPS port (default 9443), an **API token**
   (Portainer → My account → Access tokens), and the **endpoint id** of the managed
   Docker environment you want to read/manage (list them with `stack endpoints`).
+- **Podman (unix socket)** — a running Podman **service** socket (rootful
+  `/run/podman/podman.sock`, or rootless `$XDG_RUNTIME_DIR/podman/podman.sock` after
+  `systemctl --user enable --now podman.socket`). No secret; the socket's file
+  permissions are the trust boundary. Autodetection prefers the rootless socket,
+  then the rootful one.
 
 ## 3. Onboard (interactive)
 
@@ -26,13 +31,17 @@ uv tool install container-host-aiops     # or: pipx install container-host-aiops
 container-host-aiops init
 ```
 
-The wizard asks, per target, for the **platform** (`docker` / `portainer`):
+The wizard asks, per target, for the **platform** (`docker` / `portainer` / `podman`):
 
 - **docker** — connect over a **unix socket** (path, default `/var/run/docker.sock`)
   or a **TCP host** (host + optional TLS). No secret.
 - **portainer** — host, HTTPS port, managed **endpoint id**, TLS verification, and
   the **API token** (stored encrypted). A master password (used to encrypt
   `secrets.enc`) is prompted the first time a Portainer token is stored.
+- **podman** — connect over a **unix socket** (path defaults to the autodetected
+  rootless/rootful Podman socket) or a **TCP host**. No secret. Podman speaks the
+  Docker-compatible API (so all Docker reads/writes/analyses work) plus libpod-native
+  pod reads (`pod list`).
 
 Non-secret connection details go to `~/.container-host-aiops/config.yaml`; a
 Portainer token goes to `~/.container-host-aiops/secrets.enc` (encrypted).
@@ -57,6 +66,11 @@ targets:
     port: 9443
     endpoint_id: "1"
     verify_ssl: false        # true in production
+
+  - name: podman-local
+    platform: podman
+    # socket_path omitted → autodetect rootless ($XDG_RUNTIME_DIR/podman/podman.sock)
+    # then rootful (/run/podman/podman.sock); set socket_path to pin one explicitly.
 ```
 
 Then store the Portainer token (encrypted):
@@ -68,8 +82,9 @@ container-host-aiops doctor
 
 ## 4. Credentials & security
 
-- Only **Portainer** needs a secret. Its API token is **never** written to disk in
-  plaintext — it lives encrypted in `~/.container-host-aiops/secrets.enc` (Fernet /
+- Only **Portainer** needs a secret; **Docker and Podman** sockets need none (file
+  permissions are the boundary). The Portainer API token is **never** written to disk
+  in plaintext — it lives encrypted in `~/.container-host-aiops/secrets.enc` (Fernet /
   AES-128 + a scrypt-derived key; chmod 600). The master password is never stored.
 - The master password is resolved from `CONTAINER_HOST_AIOPS_MASTER_PASSWORD`
   (non-interactive / MCP / CI) or an interactive prompt (CLI on a TTY).
@@ -78,7 +93,7 @@ container-host-aiops doctor
 - The token is sent in the `X-API-Key` header at request time and held only in
   memory; secrets are never logged or echoed.
 - `verify_ssl` defaults to true; disable only for a self-signed Portainer / TLS
-  Docker daemon in a lab. A unix-socket Docker target does not use TLS.
+  Docker daemon in a lab. A unix-socket Docker/Podman target does not use TLS.
 
 ## 5. Governance
 
@@ -97,12 +112,12 @@ Every MCP tool runs through the bundled `@governed_tool` harness:
 ## 6. Verify
 
 ```bash
-container-host-aiops doctor            # Docker: GET /version · Portainer: GET /api/endpoints
+container-host-aiops doctor            # Docker/Podman: GET /version · Portainer: GET /api/endpoints
 container-host-aiops overview          # one-shot host health
 ```
 
 ## Missing a capability?
 
-Coverage is a curated subset of the Docker Engine + Portainer APIs. Missing a call
-or want another container host family? **Open an issue or PR** — contributions
-welcome.
+Coverage is a curated subset of the Docker Engine + Portainer + Podman (libpod)
+APIs. Missing a call or want another container host family? **Open an issue or PR**
+— contributions welcome.

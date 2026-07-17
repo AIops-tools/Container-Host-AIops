@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.3.0 — 2026-07-17
+
+### Added
+- **New:** Podman platform + compose-stack awareness (list_pods, list_compose_stacks).
+- **Undo executor**: `undo list` / `undo apply <id>` (CLI + MCP) — apply a recorded replayable inverse; the dispatched inverse is re-gated by its own risk tier; single-use, dry-run, double-confirm, both wrapper + inverse audited.
+
+## Unreleased
+
+### Added
+- **Podman as a third platform** (alongside docker + portainer). A `podman` target
+  connects over the rootful/rootless service socket — autodetected in the order
+  `$XDG_RUNTIME_DIR/podman/podman.sock` (rootless), then `/run/podman/podman.sock`
+  (rootful); an explicit `socket_path` always overrides. Podman speaks the
+  **Docker-compatible** API at the root, so every container/image/volume/network/
+  system read, all three flagship analyses (incl. restart-loop RCA), and every
+  lifecycle + prune write are reused wholesale through the compat layer. A local
+  Podman socket needs **no secret**.
+- **`list_pods`** — Podman-only read over the libpod-native endpoint; lists pods
+  with per-pod member-container status rollups. Teaching-errors on a docker /
+  portainer target (pods do not exist there).
+- **`list_compose_stacks`** — groups containers into Compose projects by the
+  `com.docker.compose.project` label with a per-stack health rollup
+  (healthy / degraded / down). Works on **docker and podman**.
+- CLI: new `pod list` and `stack compose` commands; `init` and `doctor` now
+  understand podman targets (doctor reports the compat API version + pod count).
+- MCP tool count 34 → **36** (28 read, 8 write).
+
 ## v0.2.1 — 2026-07-16
 
 ### Fixed

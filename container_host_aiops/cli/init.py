@@ -3,7 +3,7 @@
 Walks a new user through connecting their first container host: collects the
 non-secret connection details into ``config.yaml`` and — for a Portainer target —
 the API token into the *encrypted* store (never plaintext on disk). A direct
-Docker socket target needs no secret. Designed to be run on a terminal;
+Docker or Podman socket target needs no secret. Designed to be run on a terminal;
 everything it needs is prompted with sensible defaults.
 """
 
@@ -21,7 +21,9 @@ from container_host_aiops.platform import (
     DEFAULT_DOCKER_SOCKET,
     DEFAULT_PORTAINER_PORT,
     DOCKER,
+    PODMAN,
     PORTAINER,
+    default_podman_socket,
 )
 from container_host_aiops.secretstore import SecretStore, resolve_master_password
 
@@ -84,9 +86,10 @@ def init_cmd() -> None:
     """Interactively set up your first Docker or Portainer connection."""
     console.print("[bold cyan]Container Host AIops — setup wizard[/]")
     console.print(
-        "This collects Docker or Portainer connection details (saved to "
+        "This collects Docker, Portainer, or Podman connection details (saved to "
         "config.yaml). A Portainer target also stores its API token "
-        "[bold]encrypted[/] in secrets.enc; a local Docker socket needs no secret.\n"
+        "[bold]encrypted[/] in secrets.enc; a local Docker/Podman socket needs no "
+        "secret.\n"
     )
 
     targets = _load_existing_targets()
@@ -102,23 +105,27 @@ def init_cmd() -> None:
             targets = [t for t in targets if t.get("name") != name]
 
         platform = typer.prompt(
-            f"Platform ({DOCKER} / {PORTAINER})", default=DOCKER
+            f"Platform ({DOCKER} / {PORTAINER} / {PODMAN})", default=DOCKER
         ).strip().lower()
-        if platform not in (DOCKER, PORTAINER):
-            console.print("[red]Platform must be 'docker' or 'portainer'.[/]")
+        if platform not in (DOCKER, PORTAINER, PODMAN):
+            console.print("[red]Platform must be 'docker', 'portainer', or 'podman'.[/]")
             continue
 
         entry: dict = {"name": name, "platform": platform}
-        if platform == DOCKER:
+        if platform in (DOCKER, PODMAN):
+            engine = "Docker" if platform == DOCKER else "Podman"
             use_socket = typer.confirm(
                 "Connect over a local unix socket? (No = TCP host)", default=True
             )
             if use_socket:
+                default_socket = (
+                    DEFAULT_DOCKER_SOCKET if platform == DOCKER else default_podman_socket()
+                )
                 entry["socket_path"] = typer.prompt(
-                    "Docker socket path", default=DEFAULT_DOCKER_SOCKET
+                    f"{engine} socket path", default=default_socket
                 ).strip()
             else:
-                entry["host"] = typer.prompt("Docker host (IP or FQDN)").strip()
+                entry["host"] = typer.prompt(f"{engine} host (IP or FQDN)").strip()
                 entry["verify_ssl"] = typer.confirm(
                     "Use TLS (https)?", default=False
                 )

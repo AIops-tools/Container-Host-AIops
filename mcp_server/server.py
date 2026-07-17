@@ -23,8 +23,10 @@ from mcp_server.tools import (  # noqa: F401 — side effects
     containers,
     images,
     networks,
+    pods,
     stacks,
     system,
+    undo,
     volumes,
     writes,
 )

@@ -46,3 +46,13 @@ def stack_detail(stack_id: StackArg, target: TargetOption = None) -> None:
 
     conn, _ = get_connection(target)
     console.print_json(json.dumps(ops.stack_detail(conn, stack_id)))
+
+
+@stack_app.command("compose")
+@cli_errors
+def stack_compose(target: TargetOption = None) -> None:
+    """Compose projects grouped by label with per-stack health (docker/podman)."""
+    from container_host_aiops.ops import stacks as ops
+
+    conn, _ = get_connection(target)
+    console.print_json(json.dumps(ops.list_compose_stacks(conn)))

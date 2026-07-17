@@ -76,10 +76,13 @@ mcp = FastMCP(
     "container-host-aiops",
     instructions=(
         "Governed container-host operations (preview) over the Docker Engine API "
-        "(unix socket or TCP) and Portainer: a one-shot host 'overview'; container "
+        "(unix socket or TCP), Portainer, and Podman (rootful/rootless socket, "
+        "Docker-compat + libpod): a one-shot host 'overview'; container "
         "reads (list/inspect/logs/stats/top/restart-summary); image, volume, "
         "network and system reads (info/version/df/events); Portainer stacks and "
-        "endpoints; three flagship analyses — 'restart_loop_rca' (crash-looping "
+        "endpoints; compose-project rollup ('list_compose_stacks', docker+podman) "
+        "and Podman pods ('list_pods', podman-only); three flagship analyses — "
+        "'restart_loop_rca' (crash-looping "
         "containers + cause/action), 'resource_pressure_analysis' (CPU/memory vs "
         "limits), and 'image_and_volume_bloat' (prune candidates + reclaimable "
         "bytes); and guarded writes (restart/stop/start/remove a container, "

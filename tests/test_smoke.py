@@ -26,8 +26,10 @@ EXPECTED_TOOLS = {
     "list_volumes", "inspect_volume", "dangling_volumes",
     # networks
     "list_networks", "inspect_network",
-    # stacks (portainer)
-    "list_endpoints", "list_stacks", "stack_detail",
+    # stacks (portainer) + compose rollup (docker/podman)
+    "list_endpoints", "list_stacks", "stack_detail", "list_compose_stacks",
+    # podman pods (podman-only)
+    "list_pods",
     # flagship analyses
     "restart_loop_rca", "resource_pressure_analysis", "image_and_volume_bloat",
     # writes
@@ -59,6 +61,7 @@ def test_all_modules_import():
         "container_host_aiops.ops.networks",
         "container_host_aiops.ops.system",
         "container_host_aiops.ops.stacks",
+        "container_host_aiops.ops.pods",
         "container_host_aiops.ops.analyses",
         "container_host_aiops.ops.writes",
         "container_host_aiops.ops.overview",
@@ -72,6 +75,7 @@ def test_all_modules_import():
         "mcp_server.tools.networks",
         "mcp_server.tools.system",
         "mcp_server.tools.stacks",
+        "mcp_server.tools.pods",
         "mcp_server.tools.analyses",
         "mcp_server.tools.writes",
     ):
@@ -100,7 +104,7 @@ def test_cli_app_builds_and_help_works():
     result = runner.invoke(app, ["--help"])
     assert result.exit_code == 0
     for sub in ("container", "image", "volume", "network", "system", "stack",
-                "analyze", "manage", "secret", "init", "overview", "doctor", "mcp"):
+                "pod", "analyze", "manage", "secret", "init", "overview", "doctor", "mcp"):
         assert sub in result.output
 
 
@@ -113,6 +117,7 @@ def test_cli_leaf_help_triggers_lazy_imports():
     for cmd in (
         ["container", "--help"], ["image", "--help"], ["volume", "--help"],
         ["network", "--help"], ["system", "--help"], ["stack", "--help"],
+        ["pod", "--help"],
         ["analyze", "--help"], ["manage", "--help"], ["secret", "--help"],
         ["doctor", "--help"], ["overview", "--help"], ["init", "--help"],
         ["container", "list", "--help"], ["container", "logs", "--help"],
@@ -121,6 +126,7 @@ def test_cli_leaf_help_triggers_lazy_imports():
         ["volume", "dangling", "--help"], ["network", "inspect", "--help"],
         ["system", "df", "--help"], ["system", "events", "--help"],
         ["stack", "list", "--help"], ["stack", "endpoints", "--help"],
+        ["stack", "compose", "--help"], ["pod", "list", "--help"],
         ["analyze", "restart-loop", "--help"], ["analyze", "resource-pressure", "--help"],
         ["analyze", "bloat", "--help"],
         ["manage", "restart", "--help"], ["manage", "stop", "--help"],

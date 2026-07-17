@@ -14,6 +14,10 @@ platform:
     ``/api/endpoints/{id}/docker/...``; the ``docker_*`` methods prepend that
     prefix automatically so the same container/image/volume reads work through
     Portainer.
+  * **Podman** — a Podman service socket. Its Docker-compatible endpoints live at
+    the root (unprefixed), so the ``docker_*`` helpers reuse the Docker paths
+    unchanged; ``libpod_get`` reaches the Podman-only libpod endpoints (pods) via
+    the platform's libpod prefix.
 
 The ``docker_*`` helpers apply the platform's Docker path prefix; the plain
 ``get``/``post`` helpers hit the raw base (used for the Portainer management API).
@@ -180,6 +184,11 @@ class ContainerHostConnection:
 
     def docker_delete(self, path: str, **kwargs: Any) -> Any:
         return self.request("DELETE", self._docker_prefix() + path, **kwargs)
+
+    # ── libpod-native helpers (Podman-only endpoints, e.g. pods) ─────────
+    def libpod_get(self, path: str, params: dict | None = None) -> Any:
+        """GET a libpod-native endpoint (raises for a non-Podman target)."""
+        return self.request("GET", self._target.platform_obj.libpod_path(path), params=params)
 
     def close(self) -> None:
         self._client.close()

@@ -1,8 +1,10 @@
 # container-host-aiops capabilities
 
-> Preview / mock-only. **34 MCP tools** (26 read, 8 write) across the Docker
-> Engine API (unix socket or TCP) and Portainer (management API + proxied Docker).
-> Docker/Portainer API responses are mocked and need live verification.
+> Preview / mock-only. **36 MCP tools** (28 read, 8 write) across the Docker
+> Engine API (unix socket or TCP), Portainer (management API + proxied Docker),
+> and Podman (rootful/rootless socket — Docker-compat layer + libpod-native
+> endpoints). Docker/Portainer/Podman API responses are mocked and need live
+> verification.
 
 Every tool is wrapped with the bundled `@governed_tool` harness (audit, policy,
 token/runaway budget, undo, risk-tiers). All host-returned text is sanitized.
@@ -64,6 +66,31 @@ token/runaway budget, undo, risk-tiers). All host-returned text is sanitized.
 | `list_endpoints` | `/api/endpoints` | Portainer managed hosts (id, name, type, status, url) |
 | `list_stacks` | `/api/stacks` | Portainer stacks (id, name, type, endpoint, status) |
 | `stack_detail` | `/api/stacks/{id}` | one stack in detail (env, entrypoint, resource control) |
+
+## Compose stacks (read; docker or podman)
+
+| Tool | Path | Returns |
+|------|------|---------|
+| `list_compose_stacks` | `/containers/json?all=true` | Compose projects grouped by the `com.docker.compose.project` label, each with its services, per-state counts, and a health verdict (healthy = all running / degraded = some / down = none); ungrouped containers counted separately. Works on **docker and podman** (the label is set by both `docker compose` and `podman compose`). |
+
+## Pods — Podman (read; requires a podman target)
+
+| Tool | Path | Returns |
+|------|------|---------|
+| `list_pods` | `/{libpod}/pods/json` | Podman pods (id, name, status, created, infra id, member-container count + status rollup), bucketed by pod status. Pods are a Podman-only libpod concept — teaching-errors on docker/portainer. |
+
+## Podman platform notes
+
+- **Socket autodetection** (a `podman` target with no explicit `socket_path`): probe
+  `$XDG_RUNTIME_DIR/podman/podman.sock` (rootless) first, then `/run/podman/podman.sock`
+  (rootful); first existing wins, else fall back to the rootful path. An explicit
+  `socket_path` always overrides.
+- **Docker-compat reuse**: Podman serves the Docker-compatible API at the root
+  (unversioned), so every read/write/analysis above is reused wholesale — a `podman`
+  target behaves identically to `docker` for containers/images/volumes/networks/system
+  and all three flagship analyses and lifecycle/prune writes.
+- **libpod-native**: only pod reads use the libpod prefix; everything else stays on the
+  compat layer. A local Podman socket needs no secret.
 
 ## Flagship analyses (read; injected or live)
 
