@@ -73,7 +73,9 @@ def test_inspect_before_state_is_best_effort_and_never_raises():
     conn.docker_post.return_value = {}
     out = writes.stop_container(conn, "ghost")
     assert out["priorState"] == {"running": True}  # default when prior unknown
-    assert out["name"] == ""  # empty prior inspect → no name recoverable
+    # No name is recoverable from an empty prior inspect. That is reported as
+    # null, not "" — an empty string reads as a container genuinely named "".
+    assert out["name"] is None
     assert out["id"] == "ghost"  # id still echoed for the audit trail
     conn.docker_post.assert_called_once()  # the stop still fired
 

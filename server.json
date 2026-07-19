@@ -2,17 +2,17 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.AIops-tools/container-host-aiops",
   "title": "Container Host AIops",
-  "description": "Governed Docker + Portainer container-host ops: reads, RCA analyses, guarded writes. 34 tools.",
+  "description": "Governed Docker + Portainer container-host ops: reads, RCA analyses, guarded writes. 38 tools.",
   "repository": {
     "url": "https://github.com/AIops-tools/Container-Host-AIops",
     "source": "github"
   },
-  "version": "0.3.0",
+  "version": "0.4.0",
   "packages": [
     {
       "registryType": "pypi",
       "identifier": "container-host-aiops",
-      "version": "0.3.0",
+      "version": "0.4.0",
       "transport": {
         "type": "stdio"
       }

@@ -45,6 +45,11 @@ def container_logs(
         container_id: Container id or name.
         tail: Number of lines from the end (1..2000, default 100).
         target: Target name from config; omit for the default.
+
+    Returns an envelope: {"lines": [...], "returned": N, "limit": L,
+    "truncated": bool}. When "truncated" is true the container has older log
+    history than was returned — re-run with a higher tail rather than treating
+    this as the container's complete log.
     """
     return ops.container_logs(_get_connection(target), container_id, tail)
 

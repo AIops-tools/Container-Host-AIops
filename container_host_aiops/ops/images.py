@@ -14,6 +14,11 @@ from container_host_aiops.ops._util import _seg, clean, clean_list, human_bytes,
 _MAX_ROWS = 500
 
 
+def _strip_sha(image_id: object) -> object:
+    """Drop Docker's ``sha256:`` prefix, leaving an absent id absent."""
+    return None if image_id is None else str(image_id).removeprefix("sha256:")
+
+
 def _num(value: Any) -> int:
     try:
         return int(value)
@@ -36,7 +41,7 @@ def list_images(conn: Any, all_images: bool = False) -> dict:
         total_size += size
         tags = r.get("RepoTags") or []
         compact.append({
-            "id": short_id(str(r.get("Id", "")).removeprefix("sha256:")),
+            "id": short_id(_strip_sha(r.get("Id"))),
             "repoTags": tags,
             "sizeBytes": size,
             "sizeHuman": human_bytes(size),
@@ -68,7 +73,7 @@ def inspect_image(conn: Any, image_id: str) -> dict:
         for h in history
     ]
     return {
-        "id": short_id(str(info.get("Id", "")).removeprefix("sha256:")),
+        "id": short_id(_strip_sha(info.get("Id"))),
         "repoTags": info.get("RepoTags"),
         "sizeBytes": _num(info.get("Size")),
         "sizeHuman": human_bytes(_num(info.get("Size"))),
@@ -93,7 +98,7 @@ def dangling_images(conn: Any) -> dict:
         "reclaimableHuman": human_bytes(reclaimable),
         "images": [
             {
-                "id": short_id(str(r.get("Id", "")).removeprefix("sha256:")),
+                "id": short_id(_strip_sha(r.get("Id"))),
                 "sizeBytes": _num(r.get("Size")),
                 "sizeHuman": human_bytes(_num(r.get("Size"))),
             }

@@ -132,11 +132,18 @@ def recent_events(conn: Any, since: int = 3600, event_type: str | None = None) -
             "id": str(e.get("id") or actor.get("ID") or "")[:12],
             "time": e.get("time"),
         })
+    kept = compact[-_MAX_ROWS:]
     return {
         "windowSeconds": since,
         "total": len(events),
         "byTypeAction": dict(sorted(rollup.items(), key=lambda kv: kv[1], reverse=True)),
-        "events": [_clean_event(x) for x in compact[-_MAX_ROWS:]],
+        "events": [_clean_event(x) for x in kept],
+        "returned": len(kept),
+        "limit": _MAX_ROWS,
+        # Measured against the full parsed event stream, not guessed: when true,
+        # only the most recent _MAX_ROWS events are in "events" — narrow the
+        # window with a smaller "since" to see the rest.
+        "truncated": len(compact) > _MAX_ROWS,
     }
 
 

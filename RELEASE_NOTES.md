@@ -1,59 +1,48 @@
-# Container Host AIops v0.1.0 — preview
+# Release notes — container-host-aiops 0.4.0
 
-Governed AI-ops for **non-orchestrator container hosts** across the **Docker
-Engine API** (unix socket or TCP) and **Portainer** (its management API, which
-also proxies Docker) for AI agents, with a built-in governance harness (audit,
-policy, token/runaway budget, undo-token recording, graduated risk tiers) and an
-encrypted credential store. Standalone — no external skill-family dependency. One
-config can span many hosts; a per-target `platform` field selects the API shape.
+Previous release: 0.3.0.
 
-> **Preview / mock-only.** All behaviour is validated against mocked Docker /
-> Portainer responses; it has not been run against a live daemon or server. The
-> fastest live check is `container-host-aiops doctor`.
-
-## Highlights
-
-- **34 MCP tools** (26 read, 8 write), every one wrapped with `@governed_tool`.
-  - **Overview** — `overview` (host version + container state rollup + disk).
-  - **Containers** — `list_containers`, `inspect_container`, `container_logs`,
-    `container_stats`, `container_top`, `container_restart_summary`.
-  - **Images** — `list_images`, `inspect_image`, `dangling_images`,
-    `image_disk_usage`.
-  - **Volumes / Networks** — `list_volumes`, `inspect_volume`, `dangling_volumes`;
-    `list_networks`, `inspect_network`.
-  - **System** — `system_info`, `system_version`, `system_df`, `system_events`.
-  - **Stacks (Portainer)** — `list_endpoints`, `list_stacks`, `stack_detail`.
-  - **Writes** — `restart_container`, `stop_container`/`start_container`,
-    `update_container`, `remove_container`, `prune_images`/`prune_volumes`,
-    `recreate_stack`.
-- **Three flagship analyses** — `restart_loop_rca` (crash-looping containers +
-  cause/action from exit code + log tail), `resource_pressure_analysis` (CPU/memory
-  vs limits + recommendation), `image_and_volume_bloat` (prune candidates +
-  reclaimable bytes). Each accepts injected data for offline analysis or pulls live.
-- **Connection layer** — Docker over a unix socket (`httpx.HTTPTransport(uds=...)`)
-  or a TCP host; Portainer over HTTPS with an `X-API-Key` token that proxies the
-  Docker API of a managed endpoint. A local Docker socket needs no secret.
-- **Encrypted secret store** (`~/.container-host-aiops/secrets.enc`, Fernet + scrypt)
-  — the Portainer API token, never plaintext on disk; legacy
-  `CONTAINER_HOST_<TARGET>_TOKEN` env fallback.
-- **Guarded writes** — destructive ops (`remove_container`, `prune_images`,
-  `prune_volumes`, `recreate_stack`) require dry-run + double-confirm; prune
-  previews list what would be removed + reclaimable bytes first. Reversible writes
-  capture before-state and record an inverse undo descriptor.
-- **CLI** with an `init` platform-picking wizard, `secret` management, and a
-  platform-aware `doctor`.
-
-## Install
+## Headline: read-only mode
 
 ```bash
-uv tool install container-host-aiops
-container-host-aiops init       # pick platform (docker/portainer) + connect
-container-host-aiops doctor
+export CONTAINER_HOST_READ_ONLY=1
 ```
 
-## Caveats
+With this set the **9 write tools are never registered** — an MCP
+client lists **29 tools instead of 38**. The writes are not hidden
+behind a flag and not merely refused on call: they are absent from the session,
+so a model cannot invoke one and cannot be argued into one. For a reviewer this
+is checkable rather than promised — connect, list the tools, and the writes are
+not there.
 
-- Preview / mock-only: the Docker Engine + Portainer API responses are mocked and
-  need live verification.
-- Single-host focus by design: cluster orchestrators, hypervisors, storage
-  appliances, and backup products are out of scope (separate AIops-tools).
+Enforcement is two layers deep: the `@governed_tool` harness refuses every
+non-read operation (covering the CLI and in-process callers too), and the MCP
+server removes write tools from `list_tools()`. Changing entry point does not
+get around it.
+
+## BREAKING — return shapes changed
+
+This release changes payloads that callers may be parsing. Both changes exist
+to stop a result from misrepresenting itself:
+
+1. **Absent fields are now `null`, not `""`.** A missing value and an empty value
+   were previously indistinguishable, which invited consumers to invent the
+   difference. Keys are still always present — only the value may be null.
+2. **Anything with a `limit` now returns an envelope** —
+   `{"<items>": [...], "returned": N, "limit": L, "truncated": bool}`. Truncation is
+   *measured* (one extra row is fetched), never inferred from the page happening to
+   be full. Where a genuine pre-cap total is knowable it is reported as `total`;
+   where it isn't, `total` is deliberately omitted rather than echoing `returned`.
+
+## Also in this release
+
+- **`docs/VERIFICATION.md`** — what the mock suite actually guarantees, a live
+  verification checklist, and the criteria for claiming this tool verified.
+- **`skills/container-host-aiops/references/agent-guardrails.md`** — for driving this tool with a
+  smaller / local model: which guardrails are now enforced for you, and a
+  ready-made system prompt for the rest.
+- Expanded operator playbooks in the skill documentation.
+- The advertised tool count now matches what an MCP client actually lists
+  (it includes `undo_list` / `undo_apply`), and a release gate keeps it honest.
+- The `(preview)` label has been dropped. It never meant unreleased; verification
+  status now lives in `docs/VERIFICATION.md` where it can be specific.

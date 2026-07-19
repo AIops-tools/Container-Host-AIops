@@ -1,7 +1,8 @@
 # container-host-aiops setup & security guide
 
-> Preview / mock-only — not yet validated against a live Docker daemon,
-> Portainer, or Podman server. `container-host-aiops doctor` is the fastest live check.
+> The Docker path has been exercised against a live daemon; the Portainer and Podman
+> paths are mock-validated only (see `docs/VERIFICATION.md`).
+> `container-host-aiops doctor` is the fastest live check on any platform.
 
 ## 1. Install
 

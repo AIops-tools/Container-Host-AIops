@@ -57,4 +57,10 @@ def system_events(
     from container_host_aiops.ops import system as ops
 
     conn, _ = get_connection(target)
-    console.print_json(json.dumps(ops.recent_events(conn, since, event_type)))
+    result = ops.recent_events(conn, since, event_type)
+    console.print_json(json.dumps(result))
+    if result.get("truncated"):
+        console.print(
+            f"[yellow]… truncated at {result.get('limit')} events — "
+            f"narrow the window with a smaller --since to see the rest.[/yellow]"
+        )

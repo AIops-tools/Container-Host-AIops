@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import Any
 from urllib.parse import quote
 
-from container_host_aiops.governance import sanitize
+from container_host_aiops.governance import opt_str, sanitize
 
 
 def _seg(value: Any) -> str:
@@ -57,12 +57,31 @@ def s(value: Any, limit: int = 128) -> str:
     return sanitize(str(value if value is not None else ""), limit)
 
 
-def short_id(cid: Any) -> str:
-    """Docker's short 12-char id form for display."""
-    return str(cid or "")[:12]
+def opt(value: Any, limit: int = 128) -> str | None:
+    """Sanitize an *optional* field, preserving the difference between absent and empty.
+
+    Companion to :func:`s`, which folds ``None`` into ``""``. Docker omits keys
+    it has nothing to say about (a created-but-never-started container has no
+    ``Status``; a dangling image has no ``RepoTags``), and that is a different
+    fact from the field being present and blank. Use this for anything optional;
+    keep :func:`s` for values that always exist.
+    """
+    return opt_str(value, limit)
 
 
-def container_name(container: dict) -> str:
+def short_id(cid: Any) -> str | None:
+    """Docker's short 12-char id form for display, or None when there is no id.
+
+    An id the Engine did not report comes back as ``None`` rather than ``""`` —
+    an empty id string reads as a real (blank) identifier and a smaller model
+    will happily quote it back as one.
+    """
+    if cid is None:
+        return None
+    return str(cid)[:12]
+
+
+def container_name(container: dict) -> str | None:
     """Best-effort human name from a Docker container record.
 
     ``/containers/json`` gives ``Names: ["/foo"]``; ``inspect`` gives

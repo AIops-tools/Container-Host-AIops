@@ -132,6 +132,10 @@ def pull_restart_data(conn: Any, tail: int = 20) -> tuple[list[dict], dict[str, 
     rows = summary.get("containers", [])
     logs_by_id: dict[str, list[str]] = {}
     for r in rows:
+        # A row whose id the Engine never reported is null now, not "" — it
+        # cannot be fetched (the id would go down the wire as "None"), so skip.
+        if r.get("id") is None:
+            continue
         if int(r.get("restartCount") or 0) > 0 or (
             isinstance(r.get("exitCode"), int) and r["exitCode"] != 0
         ):

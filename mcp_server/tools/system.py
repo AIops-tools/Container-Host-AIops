@@ -71,5 +71,9 @@ def system_events(
         since: Look-back window in seconds (1..86400, default 3600).
         event_type: Filter to one event type (container/image/volume/network); omit for all.
         target: Target name from config; omit for the default.
+
+    Returns an envelope: {"events": [...], "returned": N, "limit": L,
+    "truncated": bool, "total": T}. When "truncated" is true only the most
+    recent events fit — narrow the window with a smaller "since".
     """
     return ops.recent_events(_get_connection(target), since, event_type)

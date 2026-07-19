@@ -75,7 +75,7 @@ def tool_errors(shape: str = "dict") -> Callable:
 mcp = FastMCP(
     "container-host-aiops",
     instructions=(
-        "Governed container-host operations (preview) over the Docker Engine API "
+        "Governed container-host operations over the Docker Engine API "
         "(unix socket or TCP), Portainer, and Podman (rootful/rootless socket, "
         "Docker-compat + libpod): a one-shot host 'overview'; container "
         "reads (list/inspect/logs/stats/top/restart-summary); image, volume, "

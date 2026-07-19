@@ -1,10 +1,16 @@
 ---
 name: container-host-aiops
+slug: container-host-aiops
+displayName: "Container Host AIops"
+summary: "Governed Docker + Portainer container-host ops: reads, RCA analyses, guarded writes. 38 tools."
+license: MIT
+homepage: https://github.com/AIops-tools/Container-Host-AIops
+tags: [aiops, mcp, governance, container-host]
 description: >
   Use this skill whenever the user needs to operate a single container host through the Docker Engine API, Portainer, or Podman — a one-shot host overview; container reads (list/inspect, logs tail, CPU/memory stats, top processes, restart summary); image reads (list, inspect with history, dangling, disk usage); volume reads (list, inspect, dangling); network reads (list, inspect); system reads (info, version, df disk-usage, recent events); Portainer stacks + endpoints; Compose-project rollups (list_compose_stacks, docker+podman); Podman pods (list_pods, podman-only); three flagship analyses — restart-loop RCA (crash-looping containers + cause/action), resource-pressure analysis (CPU/memory vs limits), and image & volume bloat (prune candidates + reclaimable bytes); and eight guarded writes (restart/stop/start/remove a container, prune images/volumes, update resource limits, recreate a Portainer stack).
   Always use this skill for "Docker host overview", "which containers are crash-looping", "restart loop", "why does this container keep restarting", "container CPU/memory usage", "docker logs", "which containers are near their limits", "resource pressure", "dangling images/volumes", "reclaim disk", "prune images", "stop/start/restart a container", "update a container's memory limit", "Portainer stacks", "compose stacks", "Podman pods" when the context is a Docker, Portainer, or Podman container host.
   Do NOT use when the target is a cluster orchestrator, a hypervisor, a storage appliance, a backup product, network device config, or OT/industrial equipment — route those to the appropriate other AIops-tools skill. This is for NON-orchestrator container hosts.
-  Preview — governed Docker/Portainer/Podman container-host operations with a built-in governance harness (audit, policy, token budget, undo, risk-tiers). Mock-validated only, not verified against a live Docker daemon, Portainer, or Podman server.
+  Governed Docker/Portainer/Podman container-host operations with a built-in governance harness (audit, policy, token budget, undo, risk-tiers). Exercised against a live Docker Engine 27.5.1 daemon (doctor, overview, the three flagship analyses, and a governed stop_container with audit + undo recorded); the Portainer and Podman API paths are covered by the mock suite only. See docs/VERIFICATION.md.
 installer:
   kind: uv
   package: container-host-aiops
@@ -13,7 +19,7 @@ allowed-tools:
   - Bash
 metadata: {"openclaw":{"requires":{"env":["CONTAINER_HOST_AIOPS_CONFIG"],"bins":["container-host-aiops"],"config":["~/.container-host-aiops/config.yaml"]},"optional":{"env":["CONTAINER_HOST_AIOPS_MASTER_PASSWORD"]},"primaryEnv":"CONTAINER_HOST_AIOPS_CONFIG","homepage":"https://github.com/AIops-tools/Container-Host-AIops","emoji":"🐳","os":["macos","linux"]}}
 compatibility: >
-  Standalone, self-governed Docker + Portainer + Podman container-host operations (preview). The governance harness (audit, policy, token/runaway budget, undo, risk-tiers) is bundled in the package — no external skill-family dependency. Multi-platform by construction (a platform registry); a per-target 'platform' field (docker / portainer / podman) selects the API shape.
+  Standalone, self-governed Docker + Portainer + Podman container-host operations. The governance harness (audit, policy, token/runaway budget, undo, risk-tiers) is bundled in the package — no external skill-family dependency. Multi-platform by construction (a platform registry); a per-target 'platform' field (docker / portainer / podman) selects the API shape.
   All write operations are audited to a local SQLite DB under ~/.container-host-aiops/ (relocatable via CONTAINER_HOST_AIOPS_HOME).
   Connection: a Docker target speaks the Docker Engine API over a local unix socket (httpx uds transport, default /var/run/docker.sock — treat socket access as root-equivalent) or a TCP host; a Portainer target speaks the Portainer management API over HTTPS with an X-API-Key token, and also proxies the Docker API of a managed endpoint at /api/endpoints/{id}/docker/...; a Podman target speaks over the rootful/rootless service socket (autodetected: $XDG_RUNTIME_DIR/podman/podman.sock, then /run/podman/podman.sock), reusing the Docker-compat paths at the root plus libpod-native endpoints (pods) under the libpod prefix.
   Credentials: only Portainer needs a secret — its API token is stored ENCRYPTED in ~/.container-host-aiops/secrets.enc (Fernet/AES-128 + scrypt-derived key) — never plaintext on disk. A local Docker or Podman socket needs no secret. Run 'container-host-aiops init' to onboard, or 'container-host-aiops secret set <target>' to add a Portainer token. The store is unlocked by a master password from CONTAINER_HOST_AIOPS_MASTER_PASSWORD (non-interactive/MCP/CI) or an interactive prompt (CLI on a TTY). A legacy plaintext env var CONTAINER_HOST_<TARGET_NAME_UPPER>_TOKEN is still honoured as a fallback with a deprecation warning (migrate with 'container-host-aiops secret migrate'). The token is sent in the X-API-Key header at request time and held only in memory; secrets are never logged or echoed.
@@ -21,16 +27,16 @@ compatibility: >
   Webhooks: none — no outbound network calls beyond the configured Docker socket / TCP host or the Portainer API base URL.
   SSL: verify_ssl defaults to true; disable only for a self-signed Portainer / TLS Docker daemon. A unix-socket Docker target does not use TLS.
   Transitive dependencies: httpx (HTTP client) and the MCP SDK. No post-install scripts or background services.
-  PREVIEW: mock-validated only; the Docker Engine + Portainer + Podman (libpod) API paths are modelled from the public API shape and need live verification. Community-maintained; not affiliated with or endorsed by Docker/Portainer/Podman — trademarks belong to their owners.
+  VERIFICATION: Exercised against a live Docker Engine 27.5.1 daemon (doctor, overview, the three flagship analyses, and a governed stop_container with audit + undo recorded); the Portainer and Podman API paths are covered by the mock suite only. Community-maintained; not affiliated with or endorsed by Docker/Portainer/Podman — trademarks belong to their owners.
 ---
 
-# Container Host AIops (preview)
+# Container Host AIops
 
 > **Disclaimer**: Community-maintained open-source project, **not affiliated with, endorsed by, or sponsored by Docker, Inc., Portainer.io, or any container-platform vendor.** Product and trademark names belong to their owners. Source at [github.com/AIops-tools/Container-Host-AIops](https://github.com/AIops-tools/Container-Host-AIops) under the MIT license.
 
-Governed Docker + Portainer + Podman container-host operations — **36 MCP tools**, every one wrapped with the bundled `@governed_tool` harness: a local unified audit log under `~/.container-host-aiops/`, policy engine, token/runaway budget guard, undo-token recording, and graduated-autonomy risk tiers. A Docker target speaks the Docker Engine API over a unix socket or TCP; a Portainer target speaks the Portainer API (and proxies Docker); a Podman target speaks over its rootful/rootless socket (Docker-compat + libpod). The Portainer API token is stored **encrypted** (`~/.container-host-aiops/secrets.enc`, Fernet + scrypt) — never plaintext on disk; a local Docker/Podman socket needs no secret.
+Governed Docker + Portainer + Podman container-host operations — **38 MCP tools**, every one wrapped with the bundled `@governed_tool` harness: a local unified audit log under `~/.container-host-aiops/`, policy engine, token/runaway budget guard, undo-token recording, and graduated-autonomy risk tiers. A Docker target speaks the Docker Engine API over a unix socket or TCP; a Portainer target speaks the Portainer API (and proxies Docker); a Podman target speaks over its rootful/rootless socket (Docker-compat + libpod). The Portainer API token is stored **encrypted** (`~/.container-host-aiops/secrets.enc`, Fernet + scrypt) — never plaintext on disk; a local Docker/Podman socket needs no secret.
 
-> **Standalone**: the governance harness is bundled in the package (`container_host_aiops.governance`) — container-host-aiops has no external skill-family dependency. **Preview / mock-only**: not yet validated against a live Docker daemon or Portainer server.
+> **Standalone**: the governance harness is bundled in the package (`container_host_aiops.governance`) — container-host-aiops has no external skill-family dependency. **Verification**: Exercised against a live Docker Engine 27.5.1 daemon (doctor, overview, the three flagship analyses, and a governed stop_container with audit + undo recorded); the Portainer and Podman API paths are covered by the mock suite only. See `docs/VERIFICATION.md`.
 
 ## What This Skill Does
 
@@ -80,17 +86,82 @@ container-host-aiops doctor
 
 ## Common Workflows
 
-### Diagnose a crash-looping container
+### 1. A container is crash-looping
 
-1. `container-host-aiops analyze restart-loop` → containers ranked by restart count, each with a likely cause (137 OOM/SIGKILL, 143 SIGTERM, 139 segfault, 127 bad entrypoint, …), an action, and a log tail
-2. Drill with `container-host-aiops container logs <id> --tail 200` and `container inspect <id>`
-3. If it is memory pressure, cross-check `analyze resource-pressure`; raise the limit with `manage update <id> '{"Memory": 1073741824}'` (dry-run first)
+1. `container-host-aiops doctor` → confirm the socket/endpoint is reachable before you
+   trust any read.
+2. `container-host-aiops analyze restart-loop` → containers ranked by restart count,
+   each with a likely cause read off the real exit code (137 OOM/SIGKILL, 143 SIGTERM,
+   139 segfault, 127 bad entrypoint, …), a recommended action, and a log tail.
+3. `container-host-aiops container logs <id> --tail 200` → read the actual crash output;
+   `container-host-aiops container inspect <id>` → confirm the exit code, restart policy,
+   and configured limits the RCA cited.
+4. If the cause is memory: `container-host-aiops analyze resource-pressure --mem 75` →
+   see how close the container runs to its ceiling, then
+   `container-host-aiops manage update <id> '{"Memory": 1073741824}' --dry-run` and
+   re-run without `--dry-run` (double-confirm; the write captures the prior limits as its
+   undo descriptor).
+5. `container-host-aiops manage restart <id>` → bring it up on the new limit, then
+   re-run `analyze restart-loop` to confirm the loop stopped.
+6. **Failure branch**: if it still loops, the limit was not the cause — reverse the
+   change with `container-host-aiops undo list` → `undo apply <id>` (restores the *prior*
+   limits, not a guess) and go back to step 3 with the fresh log tail. If the container
+   will not stop at all, `manage remove <id> --force --dry-run` first: force-remove is
+   high-risk and irreversible, so read the dry-run before committing.
 
-### Reclaim disk safely
+### 2. The host is out of disk
 
-1. `container-host-aiops analyze bloat` → prune candidates with reclaimable bytes
-2. `container-host-aiops manage prune-images --dry-run` → list exactly what would be removed
-3. Re-run without `--dry-run` (double-confirm) — a high-risk op; `prune-volumes` similarly
+1. `container-host-aiops system df` → where the space actually went (images vs
+   containers vs volumes vs build cache).
+2. `container-host-aiops analyze bloat` → dangling images, dangling volumes, and build
+   cache as ranked prune candidates with reclaimable bytes per item.
+3. `container-host-aiops image dangling` and `container-host-aiops volume dangling` →
+   eyeball the concrete list before deleting anything. A "dangling" volume holding data
+   you still want is the classic way this goes wrong.
+4. `container-host-aiops manage prune-images --dry-run` → exactly what would be removed;
+   re-run without `--dry-run` (double-confirm, high risk).
+5. `container-host-aiops manage prune-volumes --dry-run` → **read this one carefully**;
+   volume pruning destroys data and records no undo. Only then re-run for real.
+6. `container-host-aiops system df` again → confirm the space came back.
+7. **Failure branch**: pruning is not reversible. If you removed a volume you needed,
+   the undo store cannot help — restore from your backup. The dry-run in steps 4–5 is
+   the only safety net, which is why both are separate confirm-gated steps.
+
+### 3. "Everything on this box is slow"
+
+1. `container-host-aiops overview` → one-shot: platform/version, container counts by
+   state, and the headline resource picture.
+2. `container-host-aiops analyze resource-pressure --cpu 80 --mem 80` → running
+   containers ranked against **their own limits**, each row citing the measured
+   percentage rather than a verdict.
+3. `container-host-aiops container stats <id>` and `container-host-aiops container top <id>`
+   → confirm the top offender at the process level before you act on it.
+4. `container-host-aiops system events` → correlate the pressure with what changed
+   (a recent deploy, restart storm, or image pull).
+5. Act on the worst offender: `manage update <id> '{"NanoCpus": 2000000000}'` to cap it
+   (dry-run first, undo-recorded), or `manage stop <id>` to shed it entirely.
+6. **Failure branch**: if capping the top container just moves the pressure elsewhere,
+   the host is genuinely undersized rather than misconfigured — reverse your change with
+   `undo apply <id>` so you are not left with a half-applied limit, and take the sizing
+   result to whoever owns capacity.
+
+### 4. Stack drift after a bad deploy (Portainer)
+
+1. `container-host-aiops stack endpoints` → the endpoints this Portainer manages;
+   `container-host-aiops stack list` → the stacks on the one you care about.
+2. `container-host-aiops stack detail <stack-id>` → the stack's current definition;
+   `container-host-aiops stack compose <stack-id>` → the compose file it is running from.
+3. `container-host-aiops container list --running` and
+   `container-host-aiops container restarts` → which of the stack's containers are
+   actually unhealthy versus merely restarted.
+4. `container-host-aiops manage recreate-stack <stack-id> --dry-run` → preview the
+   redeploy; re-run without `--dry-run` (double-confirm, high risk).
+5. Validate with `container-host-aiops overview` and `analyze restart-loop`.
+6. **Failure branch**: `recreate-stack` redeploys from the stack's stored definition — if
+   that definition is itself the broken thing, recreating will faithfully reproduce the
+   breakage. Fix the compose source in Portainer first, and use
+   `container-host-aiops undo list` to check what the session already changed before
+   layering another write on top.
 
 ### Offline analysis (no live host)
 

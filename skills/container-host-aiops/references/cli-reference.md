@@ -1,8 +1,9 @@
 # container-host-aiops CLI reference
 
-> Preview / mock-only. Covers the Docker Engine API (unix socket or TCP),
-> Portainer (management API), and Podman (rootful/rootless socket — Docker-compat
-> + libpod); responses are mocked and need live verification.
+> Covers the Docker Engine API (unix socket or TCP), Portainer (management API), and
+> Podman (rootful/rootless socket — Docker-compat + libpod). The Docker path has been
+> exercised against a live daemon; Portainer and Podman responses are mock-validated
+> only — see `docs/VERIFICATION.md`.
 
 ## Setup
 

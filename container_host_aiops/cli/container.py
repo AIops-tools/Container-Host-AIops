@@ -52,7 +52,13 @@ def container_logs(
     from container_host_aiops.ops import containers as ops
 
     conn, _ = get_connection(target)
-    console.print_json(json.dumps(ops.container_logs(conn, container_id, tail)))
+    result = ops.container_logs(conn, container_id, tail)
+    console.print_json(json.dumps(result))
+    if result.get("truncated"):
+        console.print(
+            f"[yellow]… truncated at {result.get('limit')} lines — "
+            f"re-run with a higher --tail to see more history.[/yellow]"
+        )
 
 
 @container_app.command("stats")

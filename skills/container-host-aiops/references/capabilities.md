@@ -1,6 +1,6 @@
 # container-host-aiops capabilities
 
-> Preview / mock-only. **36 MCP tools** (28 read, 8 write) across the Docker
+> **38 MCP tools** (29 read, 9 write) across the Docker
 > Engine API (unix socket or TCP), Portainer (management API + proxied Docker),
 > and Podman (rootful/rootless socket — Docker-compat layer + libpod-native
 > endpoints). Docker/Portainer/Podman API responses are mocked and need live

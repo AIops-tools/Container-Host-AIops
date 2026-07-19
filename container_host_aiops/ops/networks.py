@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from container_host_aiops.ops._util import _seg, clean, clean_list
+from container_host_aiops.ops._util import _seg, clean, clean_list, short_id
 
 _MAX_ROWS = 500
 
@@ -23,7 +23,7 @@ def list_networks(conn: Any) -> dict:
         driver = str(r.get("Driver") or "unknown")
         by_driver[driver] = by_driver.get(driver, 0) + 1
         compact.append({
-            "id": str(r.get("Id", ""))[:12],
+            "id": short_id(r.get("Id")),
             "name": r.get("Name"),
             "driver": driver,
             "scope": r.get("Scope"),
@@ -42,7 +42,7 @@ def inspect_network(conn: Any, network_id: str) -> dict:
     ipam = (info.get("IPAM") or {}).get("Config") or []
     containers = info.get("Containers") or {}
     return {
-        "id": str(info.get("Id", ""))[:12],
+        "id": short_id(info.get("Id")),
         "name": info.get("Name"),
         "driver": info.get("Driver"),
         "scope": info.get("Scope"),

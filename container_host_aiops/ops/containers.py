@@ -54,19 +54,38 @@ def container_logs(conn: Any, container_id: str, tail: int = 100) -> dict:
 
     Docker returns a multiplexed byte stream for non-TTY containers (each frame
     prefixed by an 8-byte header); this demultiplexes best-effort into text.
+
+    Returns a truncation envelope::
+
+        {"lines": [...], "returned": 100, "limit": 100, "truncated": true, ...}
+
+    Container logs are the single most likely read to be cut off — the tail
+    window is almost always smaller than the container's history — and a bare
+    list cannot say "there is more". The consumer would have to infer it from
+    the length happening to equal the limit, and a smaller local model faced
+    with a long result tends to report that nothing came back at all. One extra
+    line is requested from Docker so ``truncated`` is *measured* rather than
+    guessed from a length coincidence.
     """
     tail = max(1, min(int(tail), 2000))
     raw = conn.docker_get_raw(
         f"/containers/{_seg(container_id)}/logs",
-        params={"stdout": "true", "stderr": "true", "tail": str(tail), "timestamps": "false"},
+        # tail + 1: if Docker can give us one more line than asked for, there is
+        # older history beyond the window and the read is genuinely truncated.
+        params={"stdout": "true", "stderr": "true", "tail": str(tail + 1),
+                "timestamps": "false"},
     )
     text = _demux_stream(raw if isinstance(raw, (bytes, bytearray)) else str(raw).encode())
     lines = [ln for ln in text.splitlines() if ln.strip()]
+    truncated = len(lines) > tail
+    kept = lines[-tail:]
     return {
         "id": short_id(container_id),
         "tail": tail,
-        "lineCount": len(lines),
-        "lines": [_clip(ln) for ln in lines[-tail:]],
+        "lines": [_clip(ln) for ln in kept],
+        "returned": len(kept),
+        "limit": tail,
+        "truncated": truncated,
     }
 
 
