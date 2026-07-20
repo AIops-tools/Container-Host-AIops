@@ -23,7 +23,22 @@ _SKILL = "container-host-aiops"
 # ── undo descriptors (built from the fetched before-state) ──────────────────
 
 
+def _is_preview(result: Any) -> bool:
+    """True when ``result`` is a dry-run preview rather than a performed write.
+
+    A preview changes nothing, so it must record NO undo. Without this check
+    ``_stop_undo`` reads a preview's missing ``priorState`` as "it was running"
+    (its permissive default) and registers a start_container inverse for a stop
+    that never happened — ``undo_apply`` would then perform a REAL start,
+    reversing an operation that never occurred. ``_update_undo`` escaped this
+    only by accident, because it happens to require a field previews omit.
+    """
+    return isinstance(result, dict) and result.get("dryRun") is True
+
+
 def _stop_undo(params: dict[str, Any], result: Any) -> Optional[dict]:
+    if _is_preview(result):
+        return None
     if not isinstance(result, dict) or not (result.get("priorState") or {}).get("running", True):
         return None
     return {
@@ -35,7 +50,7 @@ def _stop_undo(params: dict[str, Any], result: Any) -> Optional[dict]:
 
 
 def _start_undo(params: dict[str, Any], result: Any) -> Optional[dict]:
-    if not isinstance(result, dict):
+    if _is_preview(result) or not isinstance(result, dict):
         return None
     return {
         "tool": "stop_container",
@@ -46,7 +61,7 @@ def _start_undo(params: dict[str, Any], result: Any) -> Optional[dict]:
 
 
 def _update_undo(params: dict[str, Any], result: Any) -> Optional[dict]:
-    if not isinstance(result, dict) or not result.get("priorState"):
+    if _is_preview(result) or not isinstance(result, dict) or not result.get("priorState"):
         return None
     return {
         "tool": "update_container",
@@ -101,7 +116,9 @@ def stop_container(
     """
     conn = _get_connection(target)
     if dry_run:
-        return {"dryRun": True, "wouldStop": {"container_id": container_id}}
+        # The preview runs the self-lockout guard too: if the real stop would be
+        # refused, the dry-run must say so rather than report wouldStop.
+        return {"dryRun": True, "wouldStop": ops.preview_stop_container(conn, container_id)}
     return ops.stop_container(conn, container_id, timeout)
 
 
@@ -150,10 +167,13 @@ def remove_container(
     """
     conn = _get_connection(target)
     if dry_run:
+        # The preview runs the self-lockout guard too: if the real remove would
+        # be refused, the dry-run must say so rather than report wouldRemove.
         return {
             "dryRun": True,
-            "wouldRemove": {"container_id": container_id, "force": force,
-                            "remove_volumes": remove_volumes},
+            "wouldRemove": ops.preview_remove_container(
+                conn, container_id, force, remove_volumes
+            ),
         }
     return ops.remove_container(conn, container_id, force, remove_volumes)
 

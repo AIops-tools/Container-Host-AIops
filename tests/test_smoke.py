@@ -203,7 +203,8 @@ def test_update_container_records_undo_via_harness(monkeypatch):
     recorded = {}
 
     class _Store:
-        def record(self, *, skill, tool, undo_descriptor, orig_params):
+        def record(self, *, skill, tool, undo_descriptor, orig_params, effect_verified=True):
+            recorded["verified"] = effect_verified
             recorded["descriptor"] = undo_descriptor
             return "undo-7"
 
@@ -215,6 +216,9 @@ def test_update_container_records_undo_via_harness(monkeypatch):
     # the undo restores the fetched BEFORE value, not a guess
     assert recorded["descriptor"]["params"]["resources"]["Memory"] == 536870912
     assert result.get("_undo_id") == "undo-7"
+    # A write that returned normally IS a confirmed change — the unverified
+    # flag must be reserved for lost responses, or it means nothing.
+    assert recorded["verified"] is True
 
 
 @pytest.mark.unit
@@ -231,7 +235,8 @@ def test_stop_start_undo_pairing(monkeypatch):
     recorded = {}
 
     class _Store:
-        def record(self, *, skill, tool, undo_descriptor, orig_params):
+        def record(self, *, skill, tool, undo_descriptor, orig_params, effect_verified=True):
+            recorded["verified"] = effect_verified
             recorded["d"] = undo_descriptor
             return "u1"
 
@@ -262,14 +267,25 @@ def test_prune_images_dry_run_lists_candidates(monkeypatch):
 
 
 @pytest.mark.unit
-def test_dry_run_gates_destructive_cli():
-    """manage remove --dry-run must not touch the connection."""
-    from container_host_aiops.cli import app
+def test_dry_run_gates_destructive_cli(monkeypatch):
+    """manage remove --dry-run previews without deleting.
 
-    runner = CliRunner()
-    result = runner.invoke(app, ["manage", "remove", "abc123", "--dry-run"])
-    assert result.exit_code == 0
+    The invariant is "a dry_run MAY read; it must never write" — this preview
+    reads so it can run the same guards as the real remove. It routes through
+    the governed twin, so the risk=high approver gate applies to it too.
+    """
+    from container_host_aiops.cli import app
+    from mcp_server.tools import writes as gov
+
+    monkeypatch.setenv("CONTAINER_HOST_AUDIT_APPROVED_BY", "tester")
+    conn = MagicMock(name="conn")
+    conn.docker_get.return_value = {"Id": "abc123", "Name": "/web"}
+    monkeypatch.setattr(gov, "_get_connection", lambda target=None: conn)
+
+    result = CliRunner().invoke(app, ["manage", "remove", "abc123", "--dry-run"])
+    assert result.exit_code == 0, result.output
     assert "DRY-RUN" in result.output
+    conn.docker_delete.assert_not_called()  # read yes, write never
 
 
 @pytest.mark.unit

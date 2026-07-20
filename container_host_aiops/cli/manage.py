@@ -20,6 +20,7 @@ from container_host_aiops.cli._common import (
     console,
     double_confirm,
     dry_run_print,
+    dry_run_result,
 )
 
 manage_app = typer.Typer(
@@ -62,7 +63,14 @@ def stop(
     from mcp_server.tools import writes as gov
 
     if dry_run:
-        dry_run_print(operation="stop_container", api_call=f"POST /containers/{container_id}/stop")
+        # Routed through the governed twin so the preview runs the same guards
+        # and lands the same audit row as the real stop; the banner stays.
+        dry_run_result(
+            gov.stop_container(container_id=container_id, dry_run=True, target=target),
+            operation="stop_container",
+            api_call=f"POST /containers/{container_id}/stop",
+            payload_key="wouldStop",
+        )
         return
     double_confirm("stop", container_id)
     _emit(gov.stop_container(container_id=container_id, target=target))
@@ -103,10 +111,12 @@ def remove(
     from mcp_server.tools import writes as gov
 
     if dry_run:
-        dry_run_print(
+        dry_run_result(
+            gov.remove_container(container_id=container_id, force=force,
+                                 remove_volumes=volumes, dry_run=True, target=target),
             operation="remove_container",
             api_call=f"DELETE /containers/{container_id}",
-            parameters={"force": force, "volumes": volumes},
+            payload_key="wouldRemove",
         )
         return
     double_confirm("remove", container_id)

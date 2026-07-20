@@ -286,3 +286,58 @@ def test_image_read_tools_delegate_to_ops(gov_home, monkeypatch):
     }
     usage = gov.image_disk_usage()
     assert usage["reclaimableBytes"] == 400
+
+
+# ── dry_run previews are guarded at the MCP wrapper, not just in ops ─────────
+
+
+@pytest.mark.unit
+def test_stop_dry_run_on_the_portainer_container_is_refused(gov_home, monkeypatch):
+    """Pins the WIRING: the wrapper must route its preview through the guarded
+    ops.preview_stop_container. Reverting it to an inline dict would still pass
+    every ops-level test, so the assertion has to live here."""
+    conn = MagicMock(name="conn")
+    conn.docker_get.return_value = {"Name": "/portainer",
+                                    "Config": {"Image": "portainer/portainer-ce"}}
+    conn.target.platform = "portainer"
+    conn.target.port = 9443
+    monkeypatch.setattr(gov_writes, "_get_connection", lambda target=None: conn)
+
+    out = gov_writes.stop_container(container_id="portainer", dry_run=True)
+    assert "Refusing to stop" in out["error"]
+    assert "wouldStop" not in out  # no green preview for a call that will be refused
+    conn.docker_post.assert_not_called()
+
+
+@pytest.mark.unit
+def test_remove_dry_run_on_the_portainer_container_is_refused(gov_home, monkeypatch):
+    conn = MagicMock(name="conn")
+    conn.docker_get.return_value = {"Name": "/portainer", "Config": {"Image": "portainer/agent"}}
+    conn.target.platform = "portainer"
+    conn.target.port = 9443
+    monkeypatch.setattr(gov_writes, "_get_connection", lambda target=None: conn)
+
+    out = gov_writes.remove_container(container_id="portainer", force=True, dry_run=True)
+    assert "Refusing to remove" in out["error"]
+    assert "wouldRemove" not in out
+    conn.docker_delete.assert_not_called()
+
+
+@pytest.mark.unit
+def test_dry_run_on_a_non_self_container_still_returns_its_preview(gov_home, monkeypatch):
+    """Proves the dry-run guard is EXACT, not blanket — same Portainer target."""
+    conn = MagicMock(name="conn")
+    conn.docker_get.return_value = {"Name": "/web", "Config": {"Image": "nginx:1.27"}}
+    conn.target.platform = "portainer"
+    conn.target.port = 9443
+    monkeypatch.setattr(gov_writes, "_get_connection", lambda target=None: conn)
+
+    stopped = gov_writes.stop_container(container_id="web", dry_run=True)
+    assert stopped["dryRun"] is True
+    assert stopped["wouldStop"] == {"container_id": "web"}
+
+    removed = gov_writes.remove_container(container_id="web", remove_volumes=True, dry_run=True)
+    assert removed["wouldRemove"] == {"container_id": "web", "force": False,
+                                      "remove_volumes": True}
+    conn.docker_post.assert_not_called()
+    conn.docker_delete.assert_not_called()

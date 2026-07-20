@@ -236,3 +236,198 @@ def test_recreate_stack_no_endpoint_sends_no_params():
     out = writes.recreate_stack(conn, "1")
     assert out["endpointId"] is None
     assert conn.put.call_args.kwargs["params"] is None
+
+
+# ── self-lockout guard: the Portainer container the target speaks through ────
+#
+# A Portainer target proxies every request through the Portainer container, which
+# is also an ordinary row in this tool's container list. Stopping it kills the
+# API mid-request and strands the start_container undo; removing it has no undo
+# at all. These tests pin that the guard is EXACT (an ordinary container on the
+# same Portainer target still stops) and FAILS OPEN (unknown is never "it is me").
+
+
+def _portainer_conn(inspect, port=9443):
+    """A conn whose target is a Portainer platform on ``port``."""
+    conn = _conn(inspect=inspect)
+    conn.target.platform = "portainer"
+    conn.target.port = port
+    return conn
+
+
+@pytest.mark.unit
+def test_stop_refuses_the_portainer_container_by_image():
+    conn = _portainer_conn(
+        {"Name": "/portainer", "Config": {"Image": "portainer/portainer-ce:2.19"}}
+    )
+    with pytest.raises(writes.SelfLockout) as exc:
+        writes.stop_container(conn, "portainer")
+    # The reason names the KNOWN image matched, not the container's own ref, so
+    # a long registry path cannot push the remedy past the 300-char error cap.
+    assert "portainer/portainer-ce" in str(exc.value)
+    conn.docker_post.assert_not_called()  # refused BEFORE the API call
+
+
+@pytest.mark.unit
+def test_stop_refuses_the_portainer_container_by_published_port():
+    # Untagged/renamed image, but it publishes the port this target connects to.
+    inspect = {"Name": "/mgmt", "Config": {"Image": "internal/mgmt:1"},
+               "NetworkSettings": {"Ports": {"9443/tcp": [{"HostPort": "9443"}]}}}
+    conn = _portainer_conn(inspect, port=9443)
+    with pytest.raises(writes.SelfLockout):
+        writes.stop_container(conn, "mgmt")
+    conn.docker_post.assert_not_called()
+
+
+@pytest.mark.unit
+def test_remove_refuses_the_portainer_agent_container():
+    conn = _portainer_conn({"Name": "/agent", "Config": {"Image": "portainer/agent"}})
+    with pytest.raises(writes.SelfLockout):
+        writes.remove_container(conn, "agent", force=True)
+    conn.docker_delete.assert_not_called()
+
+
+@pytest.mark.unit
+def test_guard_is_exact_ordinary_container_on_portainer_target_still_stops():
+    # Proves the guard discriminates: same Portainer target, different container.
+    inspect = {"Name": "/web", "Config": {"Image": "nginx:1.27"}, "State": {"Running": True},
+               "NetworkSettings": {"Ports": {"80/tcp": [{"HostPort": "8080"}]}}}
+    conn = _portainer_conn(inspect, port=9443)
+    out = writes.stop_container(conn, "web")
+    assert out["action"] == "stop_container"
+    conn.docker_post.assert_called_once()
+    assert conn.docker_post.call_args.args[0] == "/containers/web/stop"
+
+
+@pytest.mark.unit
+def test_guard_is_exact_ordinary_container_on_portainer_target_still_removes():
+    conn = _portainer_conn({"Name": "/web", "Config": {"Image": "nginx:1.27"}})
+    out = writes.remove_container(conn, "web")
+    assert out["action"] == "remove_container"
+    conn.docker_delete.assert_called_once()
+
+
+@pytest.mark.unit
+def test_guard_fails_open_on_a_plain_docker_target():
+    # Same image, but a direct Docker socket target is NOT proxied through it.
+    conn = _conn(inspect={"Name": "/portainer", "Config": {"Image": "portainer/portainer-ce"}})
+    conn.target.platform = "docker"
+    conn.target.port = 9443
+    out = writes.stop_container(conn, "portainer")
+    assert out["action"] == "stop_container"
+    conn.docker_post.assert_called_once()
+
+
+@pytest.mark.unit
+def test_guard_fails_open_when_the_inspect_call_fails():
+    # Identity unknowable → proceed. An unknown container is never assumed to be
+    # the API; refusing on an empty inspect would block every write whenever the
+    # inspect endpoint hiccups.
+    conn = MagicMock(name="conn")
+    conn.docker_get.side_effect = RuntimeError("socket gone")
+    conn.docker_post.return_value = {}
+    conn.target.platform = "portainer"
+    conn.target.port = 9443
+    out = writes.stop_container(conn, "portainer")
+    assert out["action"] == "stop_container"
+    conn.docker_post.assert_called_once()
+
+
+@pytest.mark.unit
+def test_guard_fails_open_when_target_carries_no_port():
+    conn = _portainer_conn({"Name": "/x", "Config": {"Image": "internal/mgmt"},
+                            "NetworkSettings": {"Ports": {"9443/tcp": [{"HostPort": "9443"}]}}},
+                           port=0)
+    out = writes.stop_container(conn, "x")
+    assert out["action"] == "stop_container"
+
+
+@pytest.mark.unit
+def test_image_repo_strips_tag_and_digest_but_keeps_registry_port():
+    assert writes._image_repo("portainer/portainer-ce:2.19.4") == "portainer/portainer-ce"
+    assert writes._image_repo("portainer/portainer-ce@sha256:ab") == "portainer/portainer-ce"
+    assert writes._image_repo("reg.local:5000/portainer/portainer-ee") == (
+        "reg.local:5000/portainer/portainer-ee"
+    )
+
+
+@pytest.mark.unit
+def test_guard_reads_list_row_port_shape_too():
+    # /containers/json rows carry PublicPort ints rather than a bindings dict.
+    conn = _portainer_conn({"Names": ["/mgmt"], "Image": "internal/mgmt",
+                            "Ports": [{"PrivatePort": 9443, "PublicPort": 9443}]})
+    with pytest.raises(writes.SelfLockout):
+        writes.remove_container(conn, "mgmt")
+
+
+@pytest.mark.unit
+def test_refusal_messages_survive_the_300_char_cap():
+    """The remedy sentence must reach the caller.
+
+    ``mcp_server._shared._safe_error`` passes a ValueError through but sanitizes
+    it to 300 characters, and the "use a docker target instead" instruction is
+    the LAST thing in the message. If a cost string grows, the teaching tail is
+    what gets cut — silently. A long registry path must not do it either.
+    """
+    long_ref = "registry.internal.example.com:5000/vendor/portainer/portainer-ee:2.19.4-alpine"
+    for verb, call in (
+        ("stop", lambda c: writes.stop_container(c, "portainer")),
+        ("remove", lambda c: writes.remove_container(c, "portainer")),
+    ):
+        conn = _portainer_conn({"Name": "/portainer", "Config": {"Image": long_ref}})
+        with pytest.raises(writes.SelfLockout) as exc:
+            call(conn)
+        msg = str(exc.value)
+        assert len(msg) <= 300, f"{verb} refusal is {len(msg)} chars; tail will be truncated"
+        assert msg.rstrip().endswith("socket."), f"{verb} refusal lost its remedy sentence"
+
+
+# ── dry-run must tell the truth about a refusal ─────────────────────────────
+#
+# A preview that reports wouldStop for a call the guard will then refuse is the
+# preview being WRONG, not merely incomplete — and it is the weak-model trap
+# this line designs against: green preview → refusal → the model reads the
+# refusal as transient and retries. Fail-open semantics are identical on both
+# paths, so a dry-run can never refuse what the real call would allow.
+
+
+@pytest.mark.unit
+def test_dry_run_stop_refuses_the_portainer_container():
+    conn = _portainer_conn({"Name": "/portainer", "Config": {"Image": "portainer/portainer-ce"}})
+    with pytest.raises(writes.SelfLockout):
+        writes.preview_stop_container(conn, "portainer")
+    conn.docker_post.assert_not_called()
+
+
+@pytest.mark.unit
+def test_dry_run_remove_refuses_the_portainer_container():
+    conn = _portainer_conn({"Name": "/portainer", "Config": {"Image": "portainer/portainer-ee"}})
+    with pytest.raises(writes.SelfLockout):
+        writes.preview_remove_container(conn, "portainer", force=True)
+    conn.docker_delete.assert_not_called()
+
+
+@pytest.mark.unit
+def test_dry_run_stop_is_exact_non_self_target_still_previews():
+    conn = _portainer_conn({"Name": "/web", "Config": {"Image": "nginx:1.27"}})
+    assert writes.preview_stop_container(conn, "web") == {"container_id": "web"}
+    conn.docker_post.assert_not_called()  # a preview writes nothing either way
+
+
+@pytest.mark.unit
+def test_dry_run_remove_is_exact_non_self_target_still_previews():
+    conn = _portainer_conn({"Name": "/web", "Config": {"Image": "nginx:1.27"}})
+    out = writes.preview_remove_container(conn, "web", force=True, remove_volumes=True)
+    assert out == {"container_id": "web", "force": True, "remove_volumes": True}
+    conn.docker_delete.assert_not_called()
+
+
+@pytest.mark.unit
+def test_dry_run_fails_open_exactly_like_the_real_call():
+    # Inspect fails → identity unknown → preview proceeds, matching stop_container.
+    conn = MagicMock(name="conn")
+    conn.docker_get.side_effect = RuntimeError("socket gone")
+    conn.target.platform = "portainer"
+    conn.target.port = 9443
+    assert writes.preview_stop_container(conn, "portainer") == {"container_id": "portainer"}
+    assert writes.preview_remove_container(conn, "portainer")["container_id"] == "portainer"
