@@ -102,11 +102,11 @@ Every MCP tool runs through the bundled `@governed_tool` harness:
 
 - **Audit** — all calls logged to `~/.container-host-aiops/audit.db` (relocatable via
   `CONTAINER_HOST_AIOPS_HOME`), agent-attributed, secret-redacted.
-- **Budget / runaway guard** — token/call ceilings + a tight-loop breaker.
-- **Risk tiers** — high-risk ops (`remove_container`, `prune_images`,
-  `prune_volumes`, `recreate_stack`) can require a recorded approver
-  (`CONTAINER_HOST_AUDIT_APPROVED_BY` + `CONTAINER_HOST_AUDIT_RATIONALE` — the env-var names
-  the bundled harness reads).
+- **Runaway guard** — a safety backstop (not authorization): a tight-loop breaker
+  plus optional call/time ceilings. Disable with `CONTAINER_HOST_RUNAWAY_MAX=0`.
+- **Risk tier** — a descriptive label on each audit row derived from `risk_level`;
+  it gates nothing. `CONTAINER_HOST_AUDIT_APPROVED_BY` / `CONTAINER_HOST_AUDIT_RATIONALE`
+  are optional annotations recorded on the row, never required.
 - **Undo recording** — reversible writes capture the before-state and record an
   inverse (`stop`→`start`, `update_container`→restore prior limits).
 

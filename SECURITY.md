@@ -39,18 +39,22 @@ Every MCP tool runs through the bundled `@governed_tool` harness
   `CONTAINER_HOST_MAX_TOOL_SECONDS` — the env-var names the bundled harness reads)
   plus an on-by-default guard that trips a tight poll/retry loop, preventing
   unbounded API consumption.
-- **Graduated risk tiers** — `~/.container-host-aiops/rules.yaml` `risk_tiers` gate
-  writes by environment/tag; the highest tiers require a recorded approver.
+- **Risk-tier labelling** — each tool's declared `risk_level` is carried into the
+  audit row as a descriptive tier (low→none … high/critical→review). It labels
+  the row; it does not gate the call. The skill does not decide read vs write —
+  see below.
 - **Undo-token recording** — reversible writes capture the BEFORE state and
   record an inverse descriptor (e.g. `stop_container`→`start_container`,
   `update_container`→restore prior limits) so the change can be rolled back.
 
 ### State-Changing Operations
 Destructive writes — `remove_container`, `prune_images`, `prune_volumes`,
-`recreate_stack` — are `risk_level=high`, accept a `dry_run` preview (prune
-previews **list what would be removed + reclaimable bytes** first), and (under
-`risk_tiers`) require a recorded approver (`CONTAINER_HOST_AUDIT_APPROVED_BY` +
-`CONTAINER_HOST_AUDIT_RATIONALE` — the env-var names the bundled harness reads).
+`recreate_stack` — are `risk_level=high` and accept a `dry_run` preview (prune
+previews **list what would be removed + reclaimable bytes** first). Whether such
+a write is permitted is not the skill's decision: control it with the account
+you connect (a read-only socket, a scope-limited Portainer token) or the agent's
+own judgement. `CONTAINER_HOST_AUDIT_APPROVED_BY` / `CONTAINER_HOST_AUDIT_RATIONALE`
+are optional audit annotations recorded on the row, never required.
 Lifecycle writes (`restart_container`, `stop_container`, `start_container`,
 `update_container`) are `risk_level=medium`; reversible ones capture before-state
 and record an undo token. `remove_container` captures the full inspect JSON

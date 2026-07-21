@@ -19,7 +19,6 @@ from container_host_aiops.cli._common import (
     cli_errors,
     console,
     double_confirm,
-    dry_run_print,
     dry_run_result,
 )
 
@@ -45,9 +44,11 @@ def restart(
     from mcp_server.tools import writes as gov
 
     if dry_run:
-        dry_run_print(
+        dry_run_result(
+            gov.restart_container(container_id=container_id, dry_run=True, target=target),
             operation="restart_container",
             api_call=f"POST /containers/{container_id}/restart",
+            payload_key="wouldRestart",
         )
         return
     double_confirm("restart", container_id)
@@ -85,9 +86,11 @@ def start(
     from mcp_server.tools import writes as gov
 
     if dry_run:
-        dry_run_print(
+        dry_run_result(
+            gov.start_container(container_id=container_id, dry_run=True, target=target),
             operation="start_container",
             api_call=f"POST /containers/{container_id}/start",
+            payload_key="wouldStart",
         )
         return
     double_confirm("start", container_id)
@@ -172,10 +175,12 @@ def update(
 
     resources = json.loads(resources_json)
     if dry_run:
-        dry_run_print(
+        dry_run_result(
+            gov.update_container(container_id=container_id, resources=resources,
+                                 dry_run=True, target=target),
             operation="update_container",
             api_call=f"POST /containers/{container_id}/update",
-            parameters=resources,
+            payload_key="wouldUpdate",
         )
         return
     double_confirm("update resource limits on", container_id)
@@ -194,10 +199,12 @@ def recreate_stack(
     from mcp_server.tools import writes as gov
 
     if dry_run:
-        dry_run_print(
+        dry_run_result(
+            gov.recreate_stack(stack_id=stack_id, endpoint_id=endpoint_id, dry_run=True,
+                               target=target),
             operation="recreate_stack",
             api_call=f"PUT /api/stacks/{stack_id}/git/redeploy",
-            parameters={"endpoint_id": endpoint_id},
+            payload_key="wouldRecreate",
         )
         return
     double_confirm("recreate stack", stack_id)

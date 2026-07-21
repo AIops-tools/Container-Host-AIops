@@ -28,8 +28,9 @@ subjective "seems fine".
   before-state (`stop_container` → start; `update_container` → the *prior* limits), and
   write tools carry the right risk tier.
 - Governance persistence is tested against a real on-disk SQLite audit DB: calls land as
-  rows, failures record `status=error` and no undo, and the secure-by-default approver
-  gate refuses high-risk ops when no `rules.yaml` exists.
+  rows over both the MCP and CLI paths, failures record `status=error` and no undo, and a
+  lost-response write records `status=unknown`. The harness authorizes nothing — there is
+  no read-only, deny-rule, or approver gate to test.
 
 What the mocks cannot guarantee: that the concrete API paths, field names, and error
 shapes match a real daemon or server. Docker has now been checked against a real one;
@@ -62,8 +63,8 @@ every Docker tool — the gaps below are still open on Docker too.
       gets removed, and the reclaimed bytes matching `system df` afterwards).
 - [ ] `update_container` against a live container, then `undo apply` restoring the
       **prior** limits (the mocks prove the descriptor; a live run proves the replay).
-- [ ] `remove_container --force` on a running container, confirming the high risk tier
-      and the approver gate.
+- [ ] `remove_container --force` on a running container, confirming it runs (no gate)
+      and lands an audit row tagged `risk_tier=review`.
 - [ ] `system_events` streaming/paging behaviour on a busy host.
 - [ ] The runaway budget guard tripping on a tight poll loop against a real socket.
 
@@ -137,10 +138,10 @@ only meaningful with the build it was ticked against.
 - [ ] **Portainer**: `manage recreate-stack <id> --dry-run` then for real → the stack is
       redeployed from its stored definition and the containers come back.
 
-### 6. Governance actually gates
-- [ ] With no `~/.container-host-aiops/rules.yaml`, the high-risk ops (prune, force
-      remove, recreate-stack) are **refused** unless `CONTAINER_HOST_AUDIT_APPROVED_BY`
-      is set; with it plus `CONTAINER_HOST_AUDIT_RATIONALE`, both appear in the audit row.
+### 6. Audit is unbypassable — both entry points
+- [ ] Run a write over MCP and the same write over the CLI; confirm **both** land a row
+      in `audit.db`, and that `CONTAINER_HOST_AUDIT_APPROVED_BY` / `_RATIONALE`, when set,
+      appear on the row (recorded, never required).
 - [ ] A tight poll loop trips the runaway budget guard rather than hammering the socket.
 - [ ] A failed call (nonexistent container id) is audited `status=error` with no undo.
 

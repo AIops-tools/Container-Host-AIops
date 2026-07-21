@@ -9,16 +9,31 @@ the tool now enforces them itself.
 The distinction matters. A guardrail in a prompt is a request. A guardrail in the
 harness is a guarantee. Anything below that we could move into the harness, we did.
 
-## What the tool now enforces — do not waste prompt budget on these
+## Authorization is not this tool's job — decide it where it belongs
+
+Whether a write should happen is your decision, or the account's. The tool does
+not gate it — there is no read-only switch and no approval prompt to configure.
+The two right places to control read vs write:
+
+- **The account you connect with.** Give it a Docker socket mounted read-only,
+  or a Portainer account without write scope. A write then fails at the server,
+  which is the only place the permission actually lives — no skill-side flag can
+  be argued around by a model, but a revoked permission cannot be.
+- **Your agent's system prompt.** If you want an observe-only session, tell the
+  model not to call the write tools (they are clearly tagged `[WRITE]`).
+
+What the tool *does* guarantee is that you can always see what happened:
+
+## What the tool enforces — do not waste prompt budget on these
 
 | You might be tempted to prompt | Why you don't need to |
 |---|---|
-| "Work read-only, never touch a container" | Set `CONTAINER_HOST_READ_ONLY=1`. The nine write tools (`start_container`, `stop_container`, `restart_container`, `remove_container`, `update_container`, `recreate_stack`, `prune_images`, `prune_volumes`, `undo_apply`) are then **not registered at all** — they never appear in the tool list, so the model cannot call one even if it tries. The `@governed_tool` harness independently refuses writes, so the CLI is covered too. |
+| "Log everything you do, over both MCP and the CLI" | Every operation is audited to `~/.container-host-aiops/audit.db` regardless of what the model says it did — and the CLI writes the same row the MCP path does, so there is no unaudited entry point. Reversible writes also record an undo token capturing the *prior* state. |
 | "Don't invent a value when a field is missing" | The Docker Engine omits keys it has nothing to say about — a created-but-never-started container has no `Status`, a dangling image has no `RepoTags`. Those come back as `null`, never as `""`. An id in particular is `null` when unknown, so a blank string is never mistaken for a real identifier. |
 | "Tell me if the log was cut off" | `container_logs` returns `{"lines": [...], "returned": N, "limit": L, "truncated": true/false}`, and `system_events` the same shape. Truncation is measured — one extra line is requested from Docker — not guessed from a length coincidence. |
 | "Preserve the ordering / tell me what's most urgent" | `restart_loop_rca` and `resource_pressure_analysis` rank worst-first and carry the measured number (restart count, exit code, CPU%, memory%) in each entry. Priority is in the payload, not implied by list position. |
-| "Confirm before anything destructive" | `remove_container`, `prune_images` and `prune_volumes` require a `--dry-run`-able preview plus double confirmation at the CLI, and a named approver (`CONTAINER_HOST_AUDIT_APPROVED_BY`) for high-risk tiers. |
-| "Log what you did" | Every governed call is audited to `~/.container-host-aiops/audit.db` regardless of what the model says it did, and reversible writes record an undo token capturing the *prior* state. |
+| "Confirm before anything destructive" | `remove_container`, `prune_images` and `prune_volumes` require a `--dry-run`-able preview plus double confirmation at the CLI. |
+| "Don't get stuck retrying" | The runaway guard trips a circuit breaker if the same call is hammered in a tight loop — a stuck agent is stopped rather than left to burn calls and time. |
 
 ## What still needs a prompt
 
@@ -66,24 +81,24 @@ SCOPE
 
 ## Recommended setup for a local model
 
+Start with a connection that *cannot* write, verify, and widen the account's
+permission only when you trust the setup — the destructive operations on a
+container host are unusually cheap to invoke and unusually expensive to undo
+(`prune_volumes` deletes data no undo token can bring back):
+
 ```bash
-# Read-only until you trust the setup — this is enforced, not advisory.
-export CONTAINER_HOST_READ_ONLY=1
+# e.g. mount the Docker socket read-only for the container running this tool,
+# or use a Portainer account without write scope. Then:
 container-host-aiops doctor
 ```
 
-Then, when you are ready to allow writes, unset it and set an approver so the
-high-risk tier has an accountable name on it:
+Optionally annotate the audit trail with who is operating and why — recorded on
+every row, never required:
 
 ```bash
-unset CONTAINER_HOST_READ_ONLY
 export CONTAINER_HOST_AUDIT_APPROVED_BY="your.name@example.com"
 export CONTAINER_HOST_AUDIT_RATIONALE="clearing disk on the build host"
 ```
-
-Read-only mode is worth the extra step here because the destructive operations
-on a container host are unusually cheap to invoke and unusually expensive to
-undo: `prune_volumes` deletes data no undo token can bring back.
 
 ## If your model still struggles
 

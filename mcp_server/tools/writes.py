@@ -1,14 +1,14 @@
 """Container-host write MCP tools (guarded writes).
 
 The only state-changing tools in the package. Every one is wrapped with the
-governance harness (audit + graduated approval tier) and takes a ``dry_run``
+governance harness (audit — over MCP and the CLI alike) and takes a ``dry_run``
 preview. Reversible writes pass an ``undo=`` callback that turns the fetched
 before-state into an inverse descriptor the harness records; irreversible ones
 (remove, prune, recreate) record none.
 
-Risk tiers: remove_container / prune_images / prune_volumes / recreate_stack =
-high (destructive / irreversible); restart / stop / start / update_container =
-medium (state-changing, most reversible).
+Risk levels (a descriptive audit label, not a gate): remove_container /
+prune_images / prune_volumes / recreate_stack = high (destructive /
+irreversible); restart / stop / start / update_container = medium.
 """
 
 from typing import Any, Optional

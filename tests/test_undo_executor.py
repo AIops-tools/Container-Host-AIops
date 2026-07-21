@@ -126,6 +126,27 @@ def test_cli_undo_apply_dry_run_renders(gov_home):
 
 
 @pytest.mark.unit
+def test_cli_undo_apply_dry_run_on_an_unknown_id_is_refused_nonzero(gov_home):
+    """A preview that cannot resolve its inverse must refuse, not reassure.
+
+    This path already called the governed twin but ignored the error dict it
+    returns, so an unresolvable id left ``wouldApply`` empty and still printed a
+    cheerful "inverse: ?" banner with exit 0 — a green preview for a call that
+    was certain to fail, which is exactly the signal a weak model misreads as
+    transient and retries.
+    """
+    from typer.testing import CliRunner
+
+    from container_host_aiops.cli import app
+
+    result = CliRunner().invoke(app, ["undo", "apply", "nonexistent-id", "--dry-run"])
+    assert result.exit_code == 1
+    assert "DRY-RUN" not in result.output  # no success banner for a refusal
+    assert "nonexistent-id" in result.output  # and it names what it could not find
+    assert _CALLS == []
+
+
+@pytest.mark.unit
 def test_undo_apply_audits_both_wrapper_and_inverse(gov_home):
     uid = _record()
     gov.undo_apply(undo_id=uid)
@@ -136,3 +157,38 @@ def test_undo_apply_audits_both_wrapper_and_inverse(gov_home):
         conn.close()
     assert "undo_apply" in tools
     assert "_undo_probe" in tools
+
+
+@pytest.mark.unit
+def test_corrupt_undo_params_refuses_instead_of_replaying_with_no_arguments(monkeypatch):
+    """Defaulting to {} dispatched the inverse tool with NO arguments.
+
+    For an inverse whose parameters all have defaults that runs a real,
+    unintended operation — and the dry-run previewed it as a legitimate no-arg
+    inverse. The recorded intent is gone, so refusing is the only honest answer.
+    """
+    from mcp_server.tools import undo as u
+
+    class _Store:
+        def get(self, undo_id):
+            return {"undo_id": undo_id, "status": "recorded", "undo_tool": "start_container",
+                    "undo_params": "{not json", "effect_verified": 1}
+
+    monkeypatch.setattr(u, "get_undo_store", lambda: _Store())
+    out = u.undo_apply(undo_id="u1")
+    assert "unreadable recorded parameters" in out["error"]
+    assert "start_container" in out["error"]
+
+
+@pytest.mark.unit
+def test_non_object_undo_params_are_refused_too(monkeypatch):
+    from mcp_server.tools import undo as u
+
+    class _Store:
+        def get(self, undo_id):
+            return {"undo_id": undo_id, "status": "recorded", "undo_tool": "start_container",
+                    "undo_params": "[1, 2, 3]", "effect_verified": 1}
+
+    monkeypatch.setattr(u, "get_undo_store", lambda: _Store())
+    out = u.undo_apply(undo_id="u1")
+    assert "rather than an object" in out["error"]

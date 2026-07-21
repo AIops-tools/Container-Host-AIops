@@ -77,7 +77,12 @@ def dry_run_print(*, operation: str, api_call: str, parameters: dict | None = No
 
 
 def dry_run_result(
-    result: Any, *, operation: str, api_call: str, payload_key: str = ""
+    result: Any,
+    *,
+    operation: str,
+    api_call: str,
+    payload_key: str = "",
+    parameters: dict | None = None,
 ) -> None:
     """Render a governed dry-run result as the human DRY-RUN banner, or refuse.
 
@@ -93,16 +98,19 @@ def dry_run_result(
     teaching message in red, exit code 1.
 
     Invariant: **a dry_run MAY read; it must never write.**
+
+    ``payload_key`` pulls the banner parameters straight out of the governed
+    dict, so the preview shows the tool's real resolved state rather than a
+    hand-written guess. Pass ``parameters`` instead when the caller has already
+    reshaped that state into something more readable than the raw payload.
     """
     if isinstance(result, dict) and result.get("error"):
         console.print(f"[red]Error: {result['error']}[/]")
         raise typer.Exit(1)
-    payload = result.get(payload_key) if isinstance(result, dict) and payload_key else None
-    dry_run_print(
-        operation=operation,
-        api_call=api_call,
-        parameters=payload if isinstance(payload, dict) else None,
-    )
+    if parameters is None:
+        payload = result.get(payload_key) if isinstance(result, dict) and payload_key else None
+        parameters = payload if isinstance(payload, dict) else None
+    dry_run_print(operation=operation, api_call=api_call, parameters=parameters)
 
 
 def double_confirm(action: str, resource: str) -> None:

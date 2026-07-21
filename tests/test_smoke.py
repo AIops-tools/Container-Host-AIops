@@ -2,7 +2,7 @@
 
 Proves: every module imports, the CLI Typer app builds and --help works, the MCP
 server exposes the expected tools, EVERY MCP tool carries the harness marker
-``_is_governed_tool``, the write tools have the right risk tiers, and the guarded
+``_is_governed_tool``, the write tools carry the right risk_level, and the guarded
 writes (undo capture of the fetched BEFORE-state, dry-run gating) behave. No real
 Docker socket is needed — the connection is a MagicMock or a fake.
 """
@@ -174,6 +174,36 @@ def test_write_tools_have_correct_risk_tiers():
 
 
 @pytest.mark.unit
+def test_risk_level_agrees_with_read_write_docstring_tag():
+    """The two write-markers must never drift apart.
+
+    A tool's ``risk_level`` decides its audit tier and whether it gets dry-run /
+    undo handling; its ``[READ]``/``[WRITE]`` docstring tag is what the docs and
+    capability tables are built from. If a ``[WRITE]`` were left ``risk_level=low``
+    it would be audited as a read and skip the write machinery — this test caught
+    16 such mislabels line-wide once, so it is kept even though read-only mode
+    (its original motivation) is gone.
+    """
+    from mcp_server import server
+
+    untagged, mismatched = [], []
+    for name, tool in server.mcp._tool_manager._tools.items():
+        doc = (tool.fn.__doc__ or "").lstrip()
+        if doc.startswith("[READ]"):
+            tagged_as_read = True
+        elif doc.startswith("[WRITE]"):
+            tagged_as_read = False
+        else:
+            untagged.append(name)
+            continue
+        if tagged_as_read != (getattr(tool.fn, "_risk_level", "low") == "low"):
+            mismatched.append(name)
+
+    assert not untagged, f"tools missing a [READ]/[WRITE] docstring tag: {untagged}"
+    assert not mismatched, f"risk_level disagrees with the docstring tag: {mismatched}"
+
+
+@pytest.mark.unit
 def test_update_container_captures_before_state():
     """ops.update_container fetches the container first and records prior limits."""
     from container_host_aiops.ops import writes as ops
@@ -271,8 +301,8 @@ def test_dry_run_gates_destructive_cli(monkeypatch):
     """manage remove --dry-run previews without deleting.
 
     The invariant is "a dry_run MAY read; it must never write" — this preview
-    reads so it can run the same guards as the real remove. It routes through
-    the governed twin, so the risk=high approver gate applies to it too.
+    reads so it can run the same guards as the real remove, and routes through
+    the governed twin so it lands an audit row like any other call.
     """
     from container_host_aiops.cli import app
     from mcp_server.tools import writes as gov

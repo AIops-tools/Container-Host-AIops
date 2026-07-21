@@ -4,7 +4,7 @@
 
 > **Disclaimer**: Community-maintained open-source project. **Not affiliated with, endorsed by, or sponsored by Docker, Inc., Portainer.io, or any container-platform vendor.** "Docker", "Portainer" and all product/trademark names belong to their respective owners. MIT licensed.
 
-Governed AI-ops for **non-orchestrator container hosts** — the **Docker Engine API** (over a local unix socket or a TCP host), **Portainer** (its management API, which also proxies Docker), and **Podman** (a rootful/rootless service socket speaking the Docker-compatible API plus libpod-native endpoints) — with a **built-in governance harness**: unified audit log, policy engine, token/runaway budget guard, undo-token recording, and graduated-autonomy risk tiers. **Multi-platform by construction**: a registry keyed by `platform` means a per-target `platform` field (`docker` / `portainer` / `podman`) selects the API shape, and another host family could be added later without touching the ops/CLI/MCP layers. Exercised against a live Docker Engine 27.5.1 daemon (doctor, overview, the three flagship analyses, and a governed stop_container with audit + undo recorded); the Portainer and Podman API paths are covered by the mock suite only.
+Governed AI-ops for **non-orchestrator container hosts** — the **Docker Engine API** (over a local unix socket or a TCP host), **Portainer** (its management API, which also proxies Docker), and **Podman** (a rootful/rootless service socket speaking the Docker-compatible API plus libpod-native endpoints) — with a **built-in governance harness**: a unified audit log over both MCP and CLI, a runaway/budget safety guard, and undo-token recording. It records every operation; it does not decide whether a write is permitted — that is the agent's or the account's call. **Multi-platform by construction**: a registry keyed by `platform` means a per-target `platform` field (`docker` / `portainer` / `podman`) selects the API shape, and another host family could be added later without touching the ops/CLI/MCP layers. Exercised against a live Docker Engine 27.5.1 daemon (doctor, overview, the three flagship analyses, and a governed stop_container with audit + undo recorded); the Portainer and Podman API paths are covered by the mock suite only.
 
 ## What it does
 
@@ -23,45 +23,25 @@ Three flagship signature analyses, plus the guarded reads and writes around them
 - **Reversibility**: mutating writes fetch the **real before-state first** and record a faithful inverse (`stop`↔`start`; `update_container` restores prior CPU/memory limits). Irreversible ops (`remove_container`, `prune_images`, `prune_volumes`, `recreate_stack`) capture the before-state for audit but declare no undo.
 - **Safety**: every state-changing CLI op supports `--dry-run` and requires double confirmation; every write MCP tool takes a `dry_run` preview — and prune previews **list what would be removed + reclaimable bytes** before doing it.
 
-## Security: read-only mode
+## What this tool does, and does not, decide
 
-This tool is meant to be handed to an AI agent, so its safety story is enforced
-by the server rather than requested in a prompt:
+It delivers container-host operations — reads and writes — accurately and
+efficiently, and records every one of them. It does **not** decide whether a
+write is allowed to happen. That is the agent's judgement, or the permission of
+the account you connect it with: point it at a Docker socket mounted read-only,
+or a Portainer account without write scope, and the writes fail at the server —
+the place that actually owns the permission.
 
-```bash
-export CONTAINER_HOST_READ_ONLY=1
-```
+So there is no read-only switch, no policy file, no approval gate to configure.
+The one thing the tool guarantees is that nothing is silent: **every call, over
+MCP and over the CLI alike, lands an audit row** in
+`~/.container-host-aiops/audit.db`, and destructive writes still capture their
+before-state and record an inverse where one exists.
 
-With that set, the **9 write tools are never registered**. An MCP client
-lists **29 tools instead of 38** — the writes are not hidden, not
-gated behind a flag, and not merely refused when called. They are absent from
-the session. A model cannot invoke a tool it was never offered, and cannot be
-argued into one.
-
-That distinction is the whole point. A tool that exists but refuses still invites
-retry loops and "I'll describe the call instead" behaviour from smaller models,
-and it leaves a reviewer trusting a promise. An absent tool is a fact you can
-check: connect, list the tools, and see that the writes are not there.
-
-Enforcement is two layers deep, so the switch cannot be sidestepped by changing
-entry point:
-
-| Layer | What it does | Covers |
-|---|---|---|
-| `@governed_tool` harness | refuses every non-read operation outright | MCP, CLI, and in-process callers |
-| MCP registration | write tools are removed from `list_tools()` | anything speaking MCP |
-
-Read operations are unaffected, and every call is still audited to
-`~/.container-host-aiops/audit.db`.
-
-> The read/write split is derived from each tool's declared `risk_level`, and a
-> test asserts that this never disagrees with the `[READ]`/`[WRITE]` tag in the
-> tool's own documentation — so a write can't quietly present itself as a read.
-
-Running a smaller / local model? See
-[agent-guardrails.md](skills/container-host-aiops/references/agent-guardrails.md) — it lists
-the guardrails this tool now enforces for you (so you don't spend prompt budget
-restating them) and gives a ready-made system prompt for what's left.
+> Each tool declares a `risk_level`, kept in agreement with its `[READ]`/`[WRITE]`
+> documentation tag by a test, and carried into the audit row as a descriptive
+> tier — so a reviewer can see at a glance that a row was a high-risk delete. It
+> is a label, not a gate.
 
 ## Capability matrix (38 MCP tools)
 
@@ -112,16 +92,17 @@ container-host-aiops-mcp
 
 ## Governance
 
-Every MCP tool passes through the bundled `@governed_tool` harness:
+Every operation — MCP **and** CLI — passes through the bundled `@governed_tool`
+harness. It records; it does not authorize (see above).
 
-- **Audit** — every call (params, result, status, duration, risk tier, approver, rationale) is logged to `~/.container-host-aiops/audit.db` (relocatable via `CONTAINER_HOST_AIOPS_HOME`).
-- **Budget / runaway guard** — token and call budgets trip a circuit breaker.
-- **Risk tiers** — graduated autonomy; high-risk ops (remove / prune / recreate) can require a named approver.
+- **Audit** — every call (params, result, status, duration, risk tier, and any operator-supplied approver/rationale) is logged to `~/.container-host-aiops/audit.db` (relocatable via `CONTAINER_HOST_AIOPS_HOME`). The CLI writes the same row the MCP path does — there is no unaudited entry point.
+- **Runaway guard** — a safety backstop, not an authorization gate: the same call hammered in a tight loop trips a circuit breaker so a stuck agent can't burn unbounded calls/time. Disable with `CONTAINER_HOST_RUNAWAY_MAX=0`; optional hard ceilings via `CONTAINER_HOST_MAX_TOOL_CALLS` / `CONTAINER_HOST_MAX_TOOL_SECONDS`.
 - **Undo recording** — reversible writes record an inverse descriptor built from the fetched before-state.
+- **Risk tier** — a descriptive label on the audit row derived from `risk_level`; it gates nothing.
 
 ## Scope
 
-This is the **container-host** member of the AIops-tools family (governed AI-ops with audit + budget + undo + risk tiers), for **single-host Docker / Portainer / Podman**. It is deliberately **NOT** for a cluster orchestrator, a hypervisor, a storage appliance, a backup product, or OT / industrial edge — those are separate tools/lines.
+This is the **container-host** member of the AIops-tools family (governed AI-ops with audit + budget + undo), for **single-host Docker / Portainer / Podman**. It is deliberately **NOT** for a cluster orchestrator, a hypervisor, a storage appliance, a backup product, or OT / industrial edge — those are separate tools/lines.
 
 ## Missing a capability?
 

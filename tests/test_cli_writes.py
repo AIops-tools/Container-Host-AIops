@@ -140,14 +140,10 @@ def test_cli_manage_stop_aborts_without_double_confirm(gov_home, docker_conn):
 def test_cli_manage_remove_dry_run_reads_and_audits_but_never_writes(
     gov_home, docker_conn, monkeypatch
 ):
-    """Same invariant on the high-risk twin: MAY read, MUST NOT write.
-
-    remove_container is risk=high, so the secure-by-default approver gate now
-    applies to the preview too, since it runs through the governed twin.
-    """
+    """Same invariant on the high-risk twin: MAY read, MUST NOT write. It runs
+    through the governed twin, so the preview lands an audit row like any call."""
     from container_host_aiops.cli import app
 
-    monkeypatch.setenv("CONTAINER_HOST_AUDIT_APPROVED_BY", "tester")
     result = CliRunner().invoke(
         app, ["manage", "remove", "abc123", "--force", "--dry-run"]
     )
@@ -161,36 +157,101 @@ def test_cli_manage_remove_dry_run_reads_and_audits_but_never_writes(
 
 
 @pytest.mark.unit
-def test_cli_high_risk_without_approver_teaches_instead_of_tracebacking(
-    gov_home, docker_conn, monkeypatch
-):
-    """PolicyDenied must render as one teaching line, not a bare traceback.
-
-    Its message names the exact env var to set — the most actionable error this
-    tool produces — and it was being swallowed because PolicyDenied is not a
-    ValueError.
-
-    Exercised on the REAL write path: a preview deliberately does not demand an
-    approver (you would need the approval to learn whether one is needed), so
-    the denial only happens here.
-    """
+def test_cli_high_risk_runs_without_an_approver_and_audits(gov_home, docker_conn, monkeypatch):
+    """The skill authorizes nothing. A high-risk CLI write with no approver set
+    runs (past the double-confirm) and lands an audit row — whether it *should*
+    run is the operator's / account's call, made when they chose to run it."""
     from container_host_aiops.cli import app
 
     monkeypatch.delenv("CONTAINER_HOST_AUDIT_APPROVED_BY", raising=False)
     result = CliRunner().invoke(app, ["manage", "remove", "abc123"], input="y\ny\n")
-    assert result.exit_code == 1
-    assert "CONTAINER_HOST_AUDIT_APPROVED_BY" in result.output
-    assert result.output.strip(), "a denial must never exit silently"
+    assert result.exit_code == 0, result.output
+    docker_conn.docker_delete.assert_called_once()
+    assert _audit_tools(gov_home / "audit.db") == ["remove_container"]
+
+
+@pytest.mark.unit
+def test_cli_high_risk_dry_run_previews_and_mutates_nothing(gov_home, docker_conn):
+    """A high-risk preview runs, reads, and mutates nothing — no gate stands
+    between the operator and finding out what a delete would do."""
+    from container_host_aiops.cli import app
+
+    result = CliRunner().invoke(app, ["manage", "remove", "abc123", "--dry-run"])
+    assert result.exit_code == 0
     docker_conn.docker_delete.assert_not_called()
 
 
 @pytest.mark.unit
-def test_cli_high_risk_dry_run_previews_without_an_approver(gov_home, docker_conn, monkeypatch):
-    """The companion to the above: the preview goes through, so an operator can
-    find out what a delete would do before going to fetch a named human."""
+@pytest.mark.parametrize(
+    ("argv", "tool"),
+    [
+        (["manage", "restart", "abc123", "--dry-run"], "restart_container"),
+        (["manage", "start", "abc123", "--dry-run"], "start_container"),
+        (["manage", "update", "abc123", '{"Memory":536870912}', "--dry-run"],
+         "update_container"),
+    ],
+)
+def test_cli_manage_dry_run_is_audited_but_never_writes(gov_home, docker_conn, argv, tool):
+    """The remaining manage previews now route through the governed twin too.
+
+    Before this, each of these printed a hand-written banner and returned without
+    ever entering governance: no audit row, and no way for a guard to refuse. The
+    surviving rule is the same one ``stop``/``remove`` already state — a preview
+    may read, but it must never issue a mutating call — plus the audit row that
+    proves the preview actually went through the harness.
+    """
     from container_host_aiops.cli import app
 
-    monkeypatch.delenv("CONTAINER_HOST_AUDIT_APPROVED_BY", raising=False)
-    result = CliRunner().invoke(app, ["manage", "remove", "abc123", "--dry-run"])
-    assert result.exit_code == 0
+    result = CliRunner().invoke(app, argv)
+    assert result.exit_code == 0, result.output
+    assert "DRY-RUN" in result.output  # human banner preserved, not raw JSON
+    docker_conn.docker_post.assert_not_called()
     docker_conn.docker_delete.assert_not_called()
+    assert _audit_tools(gov_home / "audit.db") == [tool]
+
+
+@pytest.mark.unit
+def test_cli_manage_update_dry_run_banner_carries_the_resolved_resources(gov_home, docker_conn):
+    """The banner is now filled from the governed dict, not a hand-written guess."""
+    from container_host_aiops.cli import app
+
+    result = CliRunner().invoke(
+        app, ["manage", "update", "abc123", '{"Memory":536870912}', "--dry-run"]
+    )
+    assert result.exit_code == 0, result.output
+    assert "536870912" in result.output
+    docker_conn.docker_post.assert_not_called()
+
+
+@pytest.mark.unit
+def test_cli_manage_recreate_stack_dry_run_is_audited_but_never_writes(gov_home, monkeypatch):
+    """recreate-stack rides the Portainer transport, so the forbidden verbs differ.
+    The preview runs through the governed twin: it reads, it audits, it does not
+    mutate."""
+    from container_host_aiops.cli import app
+    from mcp_server.tools import writes as gov
+
+    conn = MagicMock(name="conn")
+    monkeypatch.setattr(gov, "_get_connection", lambda target=None: conn)
+    monkeypatch.delenv("CONTAINER_HOST_AUDIT_APPROVED_BY", raising=False)
+
+    result = CliRunner().invoke(app, ["manage", "recreate-stack", "s1", "--dry-run"])
+    assert result.exit_code == 0, result.output
+    assert "DRY-RUN" in result.output
+    conn.put.assert_not_called()
+    conn.post.assert_not_called()
+    conn.delete.assert_not_called()
+    assert _audit_tools(gov_home / "audit.db") == ["recreate_stack"]
+
+
+@pytest.mark.unit
+def test_cli_manage_restart_dry_run_previews_and_audits(gov_home, docker_conn):
+    """A preview runs through the governed twin: it reads, it audits, it does
+    not mutate — the same invariant on the CLI as on MCP."""
+    from container_host_aiops.cli import app
+
+    result = CliRunner().invoke(app, ["manage", "restart", "abc123", "--dry-run"])
+    assert result.exit_code == 0
+    assert "DRY-RUN" in result.output
+    docker_conn.docker_post.assert_not_called()
+    assert _audit_tools(gov_home / "audit.db") == ["restart_container"]
