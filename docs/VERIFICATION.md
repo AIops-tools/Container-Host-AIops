@@ -6,11 +6,71 @@ status is **not the same**, and this document keeps them honest:
 | Platform | Status |
 |----------|--------|
 | **Docker Engine** | ✅ **Live-verified** against Docker Engine **27.5.1** (see §"Docker: already satisfied") |
-| **Portainer** | ⬜ Mock-validated only — API paths modelled from the public API shape |
-| **Podman** (Docker-compat + libpod) | ⬜ Mock-validated only |
+| **Portainer** | ✅ **Live-verified** against Portainer **2.39.5** (see §"Portainer and Podman") |
+| **Podman** (Docker-compat + libpod) | ✅ **Live-verified** against Podman **4.9.3** (see §"Portainer and Podman") |
 
 It is deliberately checklist-shaped so results are reproducible and auditable — not a
 subjective "seems fine".
+
+## 🔴 Portainer and Podman (2026-08-03): two real bugs, one of them line-wide
+
+The two platforms the Docker round never touched. Portainer **2.39.5** managing
+the host's own Docker endpoint, and rootful Podman **4.9.3** over
+`/run/podman/podman.sock`, both driven through the real governed CLI.
+
+### Reads: correct on both, cross-checked against ground truth
+
+Portainer proxies the Docker Engine API, and its answers matched `docker` on the
+host exactly — server version 29.1.3, two running containers, five images.
+Podman's `system info`, `container list`, `image list`, `volume list` and
+`network list` all returned real data; `pod list` was re-run against a **real**
+two-container pod rather than being accepted as an empty list.
+
+### Bug 1 — the CLI exited 0 for a refused write
+
+Asking Portainer to stop the Portainer container it proxies through is exactly
+the self-lockout case the guard exists for, and the guard fired with a genuinely
+useful message. **The CLI still exited 0.** It printed the governed twin's
+`{"error": ...}` payload and returned success, so nothing reading the exit status
+could distinguish a refusal from a completed write — a 404 on a nonexistent
+container behaved the same way. The `--dry-run` path already exited 1, which made
+it worse: the preview was stricter than the write it previews.
+
+Every `manage` result now passes through `checked()`. Same defect class already
+fixed in proxmox-, xcpng-, veeam- and truenas-aiops; this repo was never swept.
+
+### Bug 2 — `undo apply` replayed against the wrong host (line-wide)
+
+Stopping a Podman container and then running `undo apply` **without** naming a
+target sent `start_container` to the *Portainer* target and 404'd. The undo
+record carries the original call's target in `orig_params`; the replay never read
+it, using whatever target the caller named — in practice the config's first
+entry.
+
+The 404 is the lucky case. Two hosts with a container named `web` — the common
+case in any fleet — and the inverse **succeeds on the wrong machine**, silently.
+All 24 copies of `undo_apply` across the line had the identical shape and none
+consulted `orig_params`, so the fix went line-wide.
+
+### The governed loop, closed on both platforms
+
+- Portainer: `manage stop` → the host reports `exited` → `undo apply` →
+  `start_container`, `effectVerified: true` → the host reports `running`. Audit
+  rows for the write, the undo and the refused attempt (`error`).
+- Podman: the same loop over the Docker-compat socket, and the undo now routes
+  itself to the podman target.
+
+### Lab recipe
+
+Portainer needs its admin bootstrapped with the **`X-Setup-Token`** printed in
+the container log (grep for `setup_token=`, not the Chisel fingerprint that
+also looks like a token), then `POST /api/endpoints` with
+`EndpointCreationType=1` for the local Docker socket, then an API key from
+`POST /api/users/1/tokens`. Podman needs `systemctl enable --now podman.socket`;
+the socket is root-owned, and a workstation reaches it with
+`ssh -L /local.sock:/run/podman/podman.sock` — delete any stale local socket
+path **before** starting the tunnel, not after.
+
 
 ## What the mock suite already guarantees (all platforms)
 
