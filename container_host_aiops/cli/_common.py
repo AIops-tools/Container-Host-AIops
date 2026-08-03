@@ -22,6 +22,41 @@ DryRunOption = Annotated[
 ]
 
 
+EXIT_UNDETERMINED = 2
+
+
+def checked(result: Any) -> Any:
+    """Return ``result``, or abort when it reports a failed/undetermined write.
+
+    Every CLI command that calls a governed twin MUST pass its result through
+    here before reporting success.
+
+    Governed twins are wrapped in ``@tool_errors``, which flattens any exception
+    into ``{"error": ...}`` and **returns** it — the CLI never sees the
+    exception. Without this check the command prints the payload and exits 0,
+    so a *refused* write is indistinguishable from a successful one to anything
+    reading the exit status. Live-caught against a real Portainer 2.39.5
+    (2026-08-03): stopping the Portainer container itself was correctly refused
+    by the self-lockout guard, and the CLI still exited 0. The dry-run path
+    already refused with exit 1, which made the asymmetry worse — the preview
+    was stricter than the real call. Same defect class already fixed in
+    proxmox-, xcpng-, veeam- and truenas-aiops; this repo was never swept.
+    """
+    if not isinstance(result, dict):
+        return result
+    error = result.get("error")
+    if error:
+        console.print(f"[red]Error: {error}[/]")
+        hint = result.get("hint")
+        if hint:
+            console.print(f"[dim]{hint}[/]")
+        raise typer.Exit(1)
+    if result.get("outcomeUnknown"):
+        console.print(f"[yellow]Outcome undetermined: {result.get('note') or ''}[/]")
+        raise typer.Exit(EXIT_UNDETERMINED)
+    return result
+
+
 def _cli_error_types() -> tuple[type[BaseException], ...]:
     """Exceptions translated to a one-line teaching error instead of a traceback.
 

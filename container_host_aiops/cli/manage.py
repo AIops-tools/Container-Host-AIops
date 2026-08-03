@@ -16,6 +16,7 @@ import typer
 from container_host_aiops.cli._common import (
     DryRunOption,
     TargetOption,
+    checked,
     cli_errors,
     console,
     double_confirm,
@@ -32,7 +33,13 @@ CidArg = Annotated[str, typer.Argument(help="Container id or name")]
 
 
 def _emit(result: dict) -> None:
-    console.print_json(json.dumps(result))
+    """Print a governed write's result — but never for a call that failed.
+
+    ``checked`` aborts with exit 1 on ``{"error": ...}``. Without it the payload
+    printed the same way whether the write landed or the self-lockout guard
+    refused it, and the process exited 0 either way.
+    """
+    console.print_json(json.dumps(checked(result)))
 
 
 @manage_app.command("restart")

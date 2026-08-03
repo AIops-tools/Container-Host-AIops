@@ -114,6 +114,32 @@ def test_cli_manage_stop_dry_run_on_portainer_self_refuses_nonzero(gov_home, mon
 
 
 @pytest.mark.unit
+def test_cli_manage_stop_refused_real_write_exits_nonzero(gov_home, monkeypatch):
+    """A refused REAL write must exit non-zero, not just print the refusal.
+
+    The dry-run above already exited 1, but the real call printed the governed
+    twin's ``{"error": ...}`` payload and exited **0** — so the preview was
+    stricter than the write it previews, and anything reading the exit status
+    could not tell a refusal from a success. Caught against a real Portainer
+    2.39.5 by asking it to stop the Portainer container it proxies through.
+    """
+    from container_host_aiops.cli import app
+    from mcp_server.tools import writes as gov
+
+    conn = MagicMock(name="conn")
+    conn.docker_get.return_value = {"Name": "/portainer",
+                                    "Config": {"Image": "portainer/portainer-ce"}}
+    conn.target.platform = "portainer"
+    conn.target.port = 9443
+    monkeypatch.setattr(gov, "_get_connection", lambda target=None: conn)
+
+    result = CliRunner().invoke(app, ["manage", "stop", "portainer"], input="y\ny\n")
+    assert result.exit_code == 1, result.output
+    assert "Refusing to stop" in result.output
+    conn.docker_post.assert_not_called()
+
+
+@pytest.mark.unit
 def test_cli_manage_stop_confirmed_goes_through_governance(gov_home, docker_conn):
     """Confirmed CLI write must execute via the governed twin: the API call
     fires AND an audit row lands in audit.db (this is what the reroute fix
