@@ -126,10 +126,14 @@ every Docker tool — the gaps below are still open on Docker too.
       and one pruned image was counted as two, because Docker's response carries
       an entry per action (`Untagged` **and** `Deleted` for the same id).
       `prune-volumes` for real is still open.
-- [ ] `update_container` against a live container, then `undo apply` restoring the
-      **prior** limits (the mocks prove the descriptor; a live run proves the replay).
-- [ ] `remove_container --force` on a running container, confirming it runs (no gate)
-      and lands an audit row tagged `risk_tier=review`.
+- [x] ✅ `update_container` against a live container, then `undo apply` — **done
+      2026-08-03**: `{"Memory":536870912}` applied to a running container (host
+      confirmed 536870912), `priorState` captured the real prior 268435456, and
+      `undo apply` restored it — confirmed on the host, not from the payload.
+- [x] ✅ `remove_container --force` on a **running** container — **done
+      2026-08-03**: it ran with no gate, the container was gone from the host,
+      and `priorInspect` held the full pre-removal inspect. No undo token is
+      recorded, which is correct — a removal has no inverse.
 - [ ] `system_events` streaming/paging behaviour on a busy host.
 - [ ] The runaway budget guard tripping on a tight poll loop against a real socket.
 
