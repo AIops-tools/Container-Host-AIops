@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.8.0 — 2026-08-03
 
 ### Fixed
 - **The image-prune preview no longer promises space it cannot free.** `reclaimableBytes` summed each dangling image's total `Size`, which includes the base layers a still-tagged image holds too — on a real Docker 29.1.3 the preview offered 11.0 MiB where the prune freed 1.6 KiB. It now subtracts `SharedSize`, read from an **unfiltered** listing (Docker computes sharing against the images it returns, so a dangling-only listing reports `SharedSize: 0` for everything and the subtraction would do nothing), and the result is labelled `reclaimableIsUpperBound` — layers still held by a container or the build cache survive the prune, so the exact figure is only known afterwards from `spaceReclaimedBytes`.
