@@ -84,23 +84,58 @@ def inspect_image(conn: Any, image_id: str) -> dict:
     }
 
 
+def _unique_bytes(row: dict) -> int:
+    """Bytes a prune would actually free: the image's own layers, not shared ones.
+
+    ``Size`` counts every layer, including the base layers a still-tagged image
+    holds too — pruning frees none of those. Measured on a real Docker 29.1.3: a
+    dangling image reported ``Size 11.5 MB`` while only 3.4 MB was unique, and an
+    earlier one promised 11.0 MiB and freed 1.6 KiB. A reclaim estimate that
+    overstates by orders of magnitude is worse than none, because the whole point
+    of the preview is deciding whether the prune is worth doing.
+
+    ``SharedSize`` is only populated when the listing is asked for it, and is -1
+    when unavailable — in which case fall back to ``Size`` rather than invent 0.
+
+    It must be read from an **unfiltered** listing: Docker computes sharing
+    against the images it returns, so a dangling-only listing reports
+    ``SharedSize: 0`` for everything and the subtraction does nothing.
+    """
+    size = _num(row.get("Size"))
+    shared = _num(row.get("SharedSize"))
+    if shared is None or shared < 0:
+        return size
+    return max(0, size - shared)
+
+
 def dangling_images(conn: Any) -> dict:
     """[READ] Untagged (dangling) images — the low-risk prune candidates."""
-    rows = clean_list(
-        conn.docker_get(
-            "/images/json", params={"filters": '{"dangling":["true"]}'}
+    # Unfiltered, so SharedSize is measured against every image; the dangling
+    # filter is applied here instead.
+    rows = [
+        r
+        for r in clean_list(
+            conn.docker_get("/images/json", params={"shared-size": "true"})
         )
-    )
-    reclaimable = sum(_num(r.get("Size")) for r in rows)
+        if not [tag for tag in (r.get("RepoTags") or []) if tag != "<none>:<none>"]
+    ]
+    reclaimable = sum(_unique_bytes(r) for r in rows)
     return {
         "danglingCount": len(rows),
         "reclaimableBytes": reclaimable,
         "reclaimableHuman": human_bytes(reclaimable),
+        # Docker's own unique-size accounting, which is an UPPER BOUND: layers
+        # still held by containers or the build cache survive the prune, so the
+        # exact figure is only knowable afterwards from SpaceReclaimed. Measured
+        # on Docker 29.1.3: 3.4 MB unique, 1.6 KiB actually freed.
+        "reclaimableIsUpperBound": True,
         "images": [
             {
                 "id": short_id(_strip_sha(r.get("Id"))),
                 "sizeBytes": _num(r.get("Size")),
                 "sizeHuman": human_bytes(_num(r.get("Size"))),
+                # What a prune actually frees, once shared layers are excluded.
+                "reclaimableBytes": _unique_bytes(r),
             }
             for r in rows
         ][:_MAX_ROWS],

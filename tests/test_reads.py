@@ -149,7 +149,39 @@ def test_dangling_images_totals_reclaimable():
     })
     out = images.dangling_images(conn)
     assert out["danglingCount"] == 2
-    assert out["reclaimableBytes"] == 750
+    assert out["reclaimableBytes"] == 750  # no SharedSize reported -> full Size
+
+
+@pytest.mark.unit
+def test_dangling_reclaimable_excludes_shared_layers():
+    """The prune estimate must not count layers a tagged image still holds.
+
+    Measured on Docker 29.1.3: a dangling image reported ``Size`` 11.5 MB with
+    8.0 MB of it shared with a still-tagged ``alpine:3.18``. Reporting the total
+    made the preview promise 11.0 MiB where the prune freed 1.6 KiB. The listing
+    must also be UNFILTERED — Docker computes sharing against the images it
+    returns, so a dangling-only listing reports SharedSize 0 for everything.
+    """
+    conn = _Conn({
+        "/images/json": [
+            {"Id": "sha256:a", "RepoTags": None, "Size": 11489126,
+             "SharedSize": 8040448},
+            {"Id": "sha256:b", "RepoTags": ["alpine:3.18"], "Size": 8040448,
+             "SharedSize": 8040448},
+        ]
+    })
+    out = images.dangling_images(conn)
+    assert out["danglingCount"] == 1  # the tagged image is not a candidate
+    assert out["reclaimableBytes"] == 11489126 - 8040448
+    assert out["reclaimableIsUpperBound"] is True
+
+
+@pytest.mark.unit
+def test_dangling_reclaimable_falls_back_when_shared_size_is_absent():
+    """SharedSize is -1 when the daemon did not compute it — not 0."""
+    conn = _Conn({"/images/json": [
+        {"Id": "sha256:a", "RepoTags": [], "Size": 500, "SharedSize": -1}]})
+    assert images.dangling_images(conn)["reclaimableBytes"] == 500
 
 
 @pytest.mark.unit

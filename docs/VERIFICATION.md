@@ -119,8 +119,13 @@ every Docker tool — the gaps below are still open on Docker too.
 
 ### Still open on Docker
 
-- [ ] `manage prune-images` / `prune-volumes` for real (dry-run preview vs what actually
-      gets removed, and the reclaimed bytes matching `system df` afterwards).
+- [x] ✅ `manage prune-images` for real — **done 2026-08-03, and comparing the
+      preview against what actually happened found two defects** (both fixed):
+      the preview promised 11.0 MiB where the prune freed 1.6 KiB, because it
+      summed each image's total size including layers a still-tagged image holds;
+      and one pruned image was counted as two, because Docker's response carries
+      an entry per action (`Untagged` **and** `Deleted` for the same id).
+      `prune-volumes` for real is still open.
 - [ ] `update_container` against a live container, then `undo apply` restoring the
       **prior** limits (the mocks prove the descriptor; a live run proves the replay).
 - [ ] `remove_container --force` on a running container, confirming it runs (no gate)

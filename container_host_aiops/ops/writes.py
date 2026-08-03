@@ -290,7 +290,14 @@ def preview_prune_images(conn: Any, dangling_only: bool = True) -> dict:
             "wouldRemoveCount": dangling.get("danglingCount"),
             "reclaimableBytes": dangling.get("reclaimableBytes"),
             "reclaimableHuman": dangling.get("reclaimableHuman"),
+            "reclaimableIsUpperBound": dangling.get("reclaimableIsUpperBound"),
             "images": dangling.get("images"),
+            "note": (
+                "reclaimableBytes is Docker's unique-size accounting — an upper "
+                "bound. Layers still held by a container or the build cache "
+                "survive the prune, so the exact figure is only known afterwards "
+                "from spaceReclaimedBytes."
+            ),
         }
     usage = img.image_disk_usage(conn)
     return {
@@ -307,10 +314,18 @@ def prune_images(conn: Any, dangling_only: bool = True) -> dict:
     result = clean(conn.docker_post("/images/prune", params={"filters": filters}))
     deleted = result.get("ImagesDeleted") or []
     reclaimed = int(result.get("SpaceReclaimed") or 0)
+    # Docker reports one entry per ACTION, not per image: removing a single
+    # image yields both an "Untagged" and a "Deleted" record for the same id, so
+    # len(deleted) said 2 images were pruned when one was. Count distinct ids.
+    removed_ids = {
+        str(e.get("Deleted") or e.get("Untagged") or "").split(":")[-1]
+        for e in deleted
+        if isinstance(e, dict)
+    } - {""}
     return {
         "action": "prune_images",
         "danglingOnly": dangling_only,
-        "deletedCount": len(deleted),
+        "deletedCount": len(removed_ids),
         "spaceReclaimedBytes": reclaimed,
         "spaceReclaimedHuman": human_bytes(reclaimed),
         "deleted": deleted[:200],
