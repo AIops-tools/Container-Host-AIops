@@ -245,6 +245,41 @@ def test_recent_events_parses_ndjson_rollup():
     assert out["byTypeAction"]["container:start"] == 1
 
 
+@pytest.mark.unit
+def test_recent_events_reports_the_span_it_actually_covers():
+    """A wide window over a bounded daemon buffer must not read as complete.
+
+    Docker's event buffer is in-memory and bounded, so on a busy host the older
+    part of a wide window is already gone: measured on a real host, `--since 300`
+    and `--since 7200` both returned the identical 256 events covering ~51
+    seconds, while `truncated` stayed false (nothing was cut by *this* tool's row
+    limit). Reporting the requested start alongside the oldest event actually
+    returned lets a caller see the gap instead of assuming full coverage.
+    """
+    import time
+
+    now = int(time.time())
+    body = (
+        b'{"Type":"container","Action":"start","id":"a","time":%d}\n'
+        b'{"Type":"container","Action":"die","id":"a","time":%d}\n'
+    ) % (now - 40, now - 30)
+    out = system.recent_events(_Conn({}, raw={"/events": body}), since=7200)
+    assert out["windowSeconds"] == 7200
+    assert out["truncated"] is False  # this tool cut nothing
+    # ...but only ~40s of the requested 7200s window is actually represented
+    assert out["coveredSeconds"] <= 60
+    assert out["oldestEventTime"] == now - 40
+    assert out["requestedFromTime"] <= now - 7200 + 5
+
+
+@pytest.mark.unit
+def test_recent_events_with_no_events_reports_zero_coverage():
+    out = system.recent_events(_Conn({}, raw={"/events": b""}), since=300)
+    assert out["total"] == 0
+    assert out["oldestEventTime"] is None
+    assert out["coveredSeconds"] == 0
+
+
 # ── stacks (portainer only) ──────────────────────────────────────────────────
 
 

@@ -283,7 +283,18 @@ def image_and_volume_bloat(
             "count": int((dangling_volumes or {}).get("danglingCount") or 0),
             "reclaimableBytes": vol_bytes,
             "reclaimableHuman": human_bytes(vol_bytes),
-            "action": "prune_volumes()",
+            # The default prune reaches only the anonymous subset, so naming
+            # plain prune_volumes() here would credit it with space it cannot
+            # reclaim. Both figures are carried instead of one ambiguous total.
+            "action": "prune_volumes(all_unused=True)",
+            "byDefaultPruneBytes": int(
+                (dangling_volumes or {}).get("anonymousReclaimableBytes") or 0
+            ),
+            "note": (
+                "reclaimableBytes covers every unused volume; a default "
+                "prune_volumes() removes only the anonymous ones "
+                "(byDefaultPruneBytes). Named volumes need all_unused=True."
+            ),
         },
         {
             "kind": "build-cache",

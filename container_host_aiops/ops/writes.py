@@ -332,24 +332,61 @@ def prune_images(conn: Any, dangling_only: bool = True) -> dict:
     }
 
 
-def preview_prune_volumes(conn: Any) -> dict:
-    """List volumes that a prune *would* remove + the reclaimable bytes (no change)."""
+def preview_prune_volumes(conn: Any, all_unused: bool = False) -> dict:
+    """List volumes a prune *would* remove + the reclaimable bytes (no change).
+
+    Scoped by the SAME ``all_unused`` flag the real prune takes, because Docker's
+    default prune removes only *anonymous* unused volumes. Reporting every
+    unreferenced volume here promised 7 volumes / 7.1 MiB where the prune then
+    delivered 4 / 65.3 KiB on a real host — a preview must describe the call it
+    is previewing, not a different one. When scoped to the default, the named
+    volumes a prune will NOT touch are still reported (``alsoUnusedNamed*``) so
+    the space is visible rather than silently dropped.
+    """
     dangling = vol.dangling_volumes(conn)
+    rows = dangling.get("volumes") or []
+    if all_unused:
+        return {
+            "allUnused": True,
+            "wouldRemoveCount": dangling.get("danglingCount"),
+            "reclaimableBytes": dangling.get("reclaimableBytes"),
+            "reclaimableHuman": dangling.get("reclaimableHuman"),
+            "volumes": rows,
+            "note": (
+                "Includes NAMED unused volumes — data a person deliberately named "
+                "and nothing currently references. Irreversible."
+            ),
+        }
     return {
-        "wouldRemoveCount": dangling.get("danglingCount"),
-        "reclaimableBytes": dangling.get("reclaimableBytes"),
-        "reclaimableHuman": dangling.get("reclaimableHuman"),
-        "volumes": dangling.get("volumes"),
+        "allUnused": False,
+        "wouldRemoveCount": dangling.get("anonymousCount"),
+        "reclaimableBytes": dangling.get("anonymousReclaimableBytes"),
+        "reclaimableHuman": dangling.get("anonymousReclaimableHuman"),
+        "volumes": [r for r in rows if r.get("anonymous")],
+        "alsoUnusedNamedCount": dangling.get("namedCount"),
+        "alsoUnusedNamedBytes": dangling.get("namedReclaimableBytes"),
+        "note": (
+            "Docker's default prune removes only ANONYMOUS unused volumes. The "
+            "named unused volumes counted in alsoUnusedNamed* survive it; pass "
+            "all_unused=true to include them."
+        ),
     }
 
 
-def prune_volumes(conn: Any) -> dict:
-    """[WRITE] Prune unreferenced (dangling) volumes. No undo. High risk."""
-    result = clean(conn.docker_post("/volumes/prune"))
+def prune_volumes(conn: Any, all_unused: bool = False) -> dict:
+    """[WRITE] Prune unreferenced volumes. No undo. High risk.
+
+    Docker removes only *anonymous* unused volumes unless the ``all`` filter is
+    set (its behaviour since 23.0), so ``all_unused`` mirrors ``docker volume
+    prune -a`` and defaults to the safer server-side default.
+    """
+    params = {"filters": '{"all":["true"]}'} if all_unused else None
+    result = clean(conn.docker_post("/volumes/prune", params=params))
     deleted = result.get("VolumesDeleted") or []
     reclaimed = int(result.get("SpaceReclaimed") or 0)
     return {
         "action": "prune_volumes",
+        "allUnused": all_unused,
         "deletedCount": len(deleted),
         "spaceReclaimedBytes": reclaimed,
         "spaceReclaimedHuman": human_bytes(reclaimed),

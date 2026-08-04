@@ -156,15 +156,21 @@ def prune_images(
 
 @manage_app.command("prune-volumes")
 @cli_errors
-def prune_volumes(target: TargetOption = None, dry_run: DryRunOption = False) -> None:
-    """Prune unreferenced volumes (dry-run lists candidates + confirm)."""
+def prune_volumes(
+    all_unused: Annotated[
+        bool, typer.Option("--all", help="Also prune NAMED unused volumes (docker prune -a)")
+    ] = False,
+    target: TargetOption = None,
+    dry_run: DryRunOption = False,
+) -> None:
+    """Prune unreferenced volumes (anonymous only unless --all; dry-run lists candidates)."""
     from mcp_server.tools import writes as gov
 
     if dry_run:
-        _emit(gov.prune_volumes(dry_run=True, target=target))
+        _emit(gov.prune_volumes(all_unused=all_unused, dry_run=True, target=target))
         return
     double_confirm("prune volumes on", "this host")
-    _emit(gov.prune_volumes(target=target))
+    _emit(gov.prune_volumes(all_unused=all_unused, target=target))
 
 
 @manage_app.command("update")

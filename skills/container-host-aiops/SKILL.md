@@ -121,7 +121,10 @@ container-host-aiops doctor
 4. `container-host-aiops manage prune-images --dry-run` → exactly what would be removed;
    re-run without `--dry-run` (double-confirm, high risk).
 5. `container-host-aiops manage prune-volumes --dry-run` → **read this one carefully**;
-   volume pruning destroys data and records no undo. Only then re-run for real.
+   volume pruning destroys data and records no undo. Note that Docker's default
+   prune removes only ANONYMOUS unused volumes — the preview reports the named
+   unused ones it will not touch as `alsoUnusedNamed*`; add `--all` to include
+   them. Only then re-run for real.
 6. `container-host-aiops system df` again → confirm the space came back.
 7. **Failure branch**: pruning is not reversible. If you removed a volume you needed,
    the undo store cannot help — restore from your backup. The dry-run in steps 4–5 is

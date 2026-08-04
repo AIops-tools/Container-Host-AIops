@@ -110,7 +110,7 @@ token/runaway budget, undo, risk-tiers). All host-returned text is sanitized.
 | `update_container` | med | `POST /containers/{id}/update` | captures prior CPU/memory limits; undo restores them |
 | `remove_container` | **high** | `DELETE /containers/{id}` | `dry_run` + double-confirm; captures full inspect BEFORE; no undo |
 | `prune_images` | **high** | `POST /images/prune` | `dry_run` LISTS candidates + reclaimable bytes first; no undo |
-| `prune_volumes` | **high** | `POST /volumes/prune` | `dry_run` LISTS candidates + reclaimable bytes first; no undo |
+| `prune_volumes` | **high** | `POST /volumes/prune` | anonymous unused volumes only unless `all_unused`; `dry_run` LISTS the candidates for that same scope + reclaimable bytes; no undo |
 | `recreate_stack` | **high** | `PUT /api/stacks/{id}/git/redeploy` | Portainer; captures prior stack; no undo |
 
 ## Not in scope

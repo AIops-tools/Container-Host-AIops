@@ -164,12 +164,22 @@ def test_prune_images_dry_run_lists_reclaimable(gov_home, monkeypatch):
 def test_prune_volumes_dry_run_lists_reclaimable(gov_home, monkeypatch):
     conn = MagicMock(name="conn")
     conn.docker_get.return_value = {
-        "Volumes": [{"Name": "v", "UsageData": {"RefCount": 0, "Size": 250}}]
+        "Volumes": [
+            {"Name": "anon", "Labels": {"com.docker.volume.anonymous": ""},
+             "UsageData": {"RefCount": 0, "Size": 250}},
+            # named + unused: survives a DEFAULT prune, so the preview must not
+            # credit this call with its bytes (it is reported separately)
+            {"Name": "v", "Labels": None, "UsageData": {"RefCount": 0, "Size": 9000}},
+        ]
     }
     monkeypatch.setattr(gov_writes, "_get_connection", lambda target=None: conn)
     out = gov_writes.prune_volumes(dry_run=True)
     assert out["dryRun"] is True
     assert out["reclaimableBytes"] == 250
+    assert out["alsoUnusedNamedBytes"] == 9000
+    out_all = gov_writes.prune_volumes(all_unused=True, dry_run=True)
+    assert out_all["reclaimableBytes"] == 9250
+    conn.docker_post.assert_not_called()
 
 
 @pytest.mark.unit

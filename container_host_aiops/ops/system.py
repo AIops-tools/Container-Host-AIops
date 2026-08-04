@@ -133,6 +133,14 @@ def recent_events(conn: Any, since: int = 3600, event_type: str | None = None) -
             "time": e.get("time"),
         })
     kept = compact[-_MAX_ROWS:]
+    # The daemon keeps a BOUNDED in-memory event buffer, so a busy host loses
+    # the older part of a wide window before this call ever sees it: on a real
+    # host, asking for 300s and for 7200s returned the identical 228 events.
+    # "total" is therefore what the daemon still holds, not everything that
+    # happened — report the span actually covered so a caller can tell the
+    # difference instead of reading truncated=false as "this is complete".
+    times = [t for t in (e.get("time") for e in events) if isinstance(t, int)]
+    oldest = min(times) if times else None
     return {
         "windowSeconds": since,
         "total": len(events),
@@ -144,6 +152,19 @@ def recent_events(conn: Any, since: int = 3600, event_type: str | None = None) -
         # only the most recent _MAX_ROWS events are in "events" — narrow the
         # window with a smaller "since" to see the rest.
         "truncated": len(compact) > _MAX_ROWS,
+        "requestedFromTime": now - since,
+        "oldestEventTime": oldest,
+        # Seconds of the requested window that actually contain returned events.
+        # Much smaller than windowSeconds means either an idle host or a daemon
+        # buffer that already dropped the earlier events — the two cannot be told
+        # apart from here, which is exactly why the raw numbers are reported.
+        "coveredSeconds": (now - oldest) if oldest is not None else 0,
+        "coverageNote": (
+            "Docker's event buffer is bounded and in-memory. If oldestEventTime "
+            "is much later than requestedFromTime, the earlier part of the window "
+            "is either genuinely idle or already evicted from the daemon buffer; "
+            "this call cannot distinguish the two, so it reports both bounds."
+        ),
     }
 
 

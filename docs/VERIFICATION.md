@@ -125,7 +125,7 @@ every Docker tool — the gaps below are still open on Docker too.
       summed each image's total size including layers a still-tagged image holds;
       and one pruned image was counted as two, because Docker's response carries
       an entry per action (`Untagged` **and** `Deleted` for the same id).
-      `prune-volumes` for real is still open.
+      `prune-volumes` was closed the same way on 2026-08-04 (below).
 - [x] ✅ `update_container` against a live container, then `undo apply` — **done
       2026-08-03**: `{"Memory":536870912}` applied to a running container (host
       confirmed 536870912), `priorState` captured the real prior 268435456, and
@@ -134,8 +134,47 @@ every Docker tool — the gaps below are still open on Docker too.
       2026-08-03**: it ran with no gate, the container was gone from the host,
       and `priorInspect` held the full pre-removal inspect. No undo token is
       recorded, which is correct — a removal has no inverse.
-- [ ] `system_events` streaming/paging behaviour on a busy host.
-- [ ] The runaway budget guard tripping on a tight poll loop against a real socket.
+- [x] ✅ `manage prune-volumes` for real — **done 2026-08-04, and the same
+      preview-vs-outcome comparison found a defect** (fixed): the preview
+      promised **7 volumes / 7.1 MiB** where the prune then removed **4 volumes
+      / 65.3 KiB**. Cause: since Docker 23.0 a default `POST /volumes/prune`
+      removes only **anonymous** unused volumes, but the preview counted every
+      unreferenced volume. The named unused volumes (`v_dangling1`,
+      `v_dangling2`) survived while the tool reported success — an operator
+      reclaiming space got ~0.9% of what was promised, and the bloat RCA
+      recommended `prune_volumes()` for space it could not reclaim. Fixed by
+      giving preview and prune a shared `all_unused` flag (mirroring
+      `docker volume prune -a`, defaulting to Docker's safer default) and
+      reporting the named-but-unused space separately as `alsoUnusedNamed*`.
+      Anonymous volumes are identified by Docker's own
+      `com.docker.volume.anonymous` label, not by the 64-hex name shape.
+      **Re-verified live, preview against outcome, word for word**: default
+      preview 1 volume / 0 B → prune removed 1 / 0 B; `--all` preview
+      7,340,032 B → prune reclaimed exactly 7,340,032 B, with the referenced
+      volume left untouched. Two unit tests had encoded the defect as the spec
+      (a *named* unused volume asserted to be a default-prune candidate) and
+      were corrected.
+- [x] ✅ `system_events` on a busy host — **done 2026-08-04**. Counts match the
+      Engine API exactly (256 = 256 over an identical window; an earlier
+      mismatch was my own sloppier `--since 300s --until 0s` ground truth, not a
+      tool defect). **What the run did surface**: Docker's event buffer is
+      bounded and in-memory, so asking for 300s and for 7200s returned the
+      *identical* 228 events — while `truncated` stayed false, since this tool's
+      own 500-row limit had cut nothing. A caller would read that as full
+      coverage of the requested window. The response now also carries
+      `requestedFromTime`, `oldestEventTime` and `coveredSeconds`, so a 7200s
+      request answered by 51 seconds of events is visible. The two cases (idle
+      host vs evicted buffer) genuinely cannot be told apart from here, so both
+      bounds are reported rather than one guessed verdict.
+- [x] ✅ The runaway budget guard on a tight poll loop against a real socket —
+      **done 2026-08-04**: it tripped on exactly the 25th identical call
+      (`CONTAINER_HOST_RUNAWAY_MAX` default) with an actionable message, and the
+      stopped call was audited as `budget_exceeded` rather than as a success.
+      **Scope note:** the guard is per-process by design (its threat model is an
+      agent stuck looping inside one session), so a shell loop that spawns a
+      fresh CLI process per iteration does not trip it — 30 consecutive CLI
+      invocations ran without tripping. That is the documented behaviour, not a
+      defect, but worth knowing before relying on it as a rate limit.
 
 ## Prerequisites for the remaining platforms
 

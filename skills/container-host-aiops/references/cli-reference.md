@@ -98,7 +98,7 @@ container-host-aiops manage start <id> [--dry-run]         # undo: stop
 container-host-aiops manage update <id> '{"Memory":1073741824}' [--dry-run]   # undo restores prior limits
 container-host-aiops manage remove <id> [--force] [--volumes] [--dry-run]     # high; captures full inspect first
 container-host-aiops manage prune-images [--all] [--dry-run]                  # high; dry-run lists candidates
-container-host-aiops manage prune-volumes [--dry-run]                         # high; dry-run lists candidates
+container-host-aiops manage prune-volumes [--all] [--dry-run]                 # high; anonymous only unless --all
 container-host-aiops manage recreate-stack <stack_id> [--endpoint-id N] [--dry-run]   # high; Portainer
 ```
 

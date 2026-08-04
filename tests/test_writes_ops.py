@@ -150,15 +150,52 @@ def test_prune_images_non_dangling_filter():
     assert conn.docker_post.call_args.kwargs["params"] == {"filters": '{"dangling":["false"]}'}
 
 
-@pytest.mark.unit
-def test_preview_prune_volumes_lists_dangling():
+def _mixed_volumes_conn():
+    """A host with one anonymous (300 B) and one NAMED (7000 B) unused volume.
+
+    Shaped like a real ``/system/df``: Docker labels the volumes it created
+    implicitly with ``com.docker.volume.anonymous``; named ones carry no labels.
+    """
     conn = MagicMock(name="conn")
     conn.docker_get.return_value = {
-        "Volumes": [{"Name": "v1", "UsageData": {"RefCount": 0, "Size": 300}}],
+        "Volumes": [
+            {"Name": "anon1", "Labels": {"com.docker.volume.anonymous": ""},
+             "UsageData": {"RefCount": 0, "Size": 300}},
+            {"Name": "v1", "Labels": None, "UsageData": {"RefCount": 0, "Size": 7000}},
+            {"Name": "inuse", "Labels": None, "UsageData": {"RefCount": 1, "Size": 999}},
+        ],
     }
-    out = writes.preview_prune_volumes(conn)
-    assert out["wouldRemoveCount"] == 1
+    return conn
+
+
+@pytest.mark.unit
+def test_preview_prune_volumes_default_counts_only_anonymous():
+    """The preview must describe the call it previews (measured defect).
+
+    Docker's default ``POST /volumes/prune`` removes ONLY anonymous unused
+    volumes. Counting every unreferenced volume made the preview promise
+    7 volumes / 7.1 MiB on a real host where the prune then delivered
+    4 / 65.3 KiB. The named-but-unused space is still reported, just not as
+    something this call will reclaim. The previous version of this test used a
+    single NAMED volume and asserted it was a default-prune candidate, which
+    encoded the defect as the spec.
+    """
+    out = writes.preview_prune_volumes(_mixed_volumes_conn())
+    assert out["allUnused"] is False
+    assert out["wouldRemoveCount"] == 1  # the anonymous one only
     assert out["reclaimableBytes"] == 300
+    assert [v["name"] for v in out["volumes"]] == ["anon1"]
+    # the named volume is not hidden — it is reported as out of this call's reach
+    assert out["alsoUnusedNamedCount"] == 1
+    assert out["alsoUnusedNamedBytes"] == 7000
+
+
+@pytest.mark.unit
+def test_preview_prune_volumes_all_unused_counts_every_unused_volume():
+    out = writes.preview_prune_volumes(_mixed_volumes_conn(), all_unused=True)
+    assert out["allUnused"] is True
+    assert out["wouldRemoveCount"] == 2
+    assert out["reclaimableBytes"] == 7300  # referenced volume excluded
 
 
 @pytest.mark.unit
@@ -167,9 +204,21 @@ def test_prune_volumes_reports_deleted_and_reclaimed():
     conn.docker_post.return_value = {"VolumesDeleted": ["v1", "v2"], "SpaceReclaimed": 512}
     out = writes.prune_volumes(conn)
     assert out["action"] == "prune_volumes"
+    assert out["allUnused"] is False
     assert out["deletedCount"] == 2
     assert out["spaceReclaimedBytes"] == 512
     assert conn.docker_post.call_args.args[0] == "/volumes/prune"
+    # default must NOT send the all filter — that is what keeps named volumes safe
+    assert conn.docker_post.call_args.kwargs["params"] is None
+
+
+@pytest.mark.unit
+def test_prune_volumes_all_unused_sends_the_all_filter():
+    conn = MagicMock(name="conn")
+    conn.docker_post.return_value = {"VolumesDeleted": ["v1"], "SpaceReclaimed": 7000}
+    out = writes.prune_volumes(conn, all_unused=True)
+    assert out["allUnused"] is True
+    assert conn.docker_post.call_args.kwargs["params"] == {"filters": '{"all":["true"]}'}
 
 
 @pytest.mark.unit

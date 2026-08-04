@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- **`prune_volumes`'s preview described a different call than the one it previews.** Since Docker 23.0 a default `POST /volumes/prune` removes only **anonymous** unused volumes, but the preview counted every unreferenced volume: on a real host it promised **7 volumes / 7.1 MiB** where the prune then removed **4 / 65.3 KiB**, leaving the named volumes in place while reporting success — so an operator reclaiming disk got ~0.9% of what was advertised. The preview is now scoped by the same flag as the call, and the named-but-unused space it will not touch is reported separately (`alsoUnusedNamedCount` / `alsoUnusedNamedBytes`) instead of being folded into the promise. The `image_and_volume_bloat` RCA no longer credits a default `prune_volumes()` with space only `all_unused=True` can reclaim. Two unit tests had encoded the defect as the spec and were corrected.
+- **`system_events` no longer reads as full coverage of a window it cannot cover.** Docker's event buffer is bounded and in-memory, so on a busy host `--since 300` and `--since 7200` return the identical events while `truncated` stays false (this tool's own row limit cut nothing). The response now carries `requestedFromTime`, `oldestEventTime` and `coveredSeconds`, making a 7200-second request answered by 51 seconds of events visible. Idle host and evicted buffer cannot be distinguished from here, so both bounds are reported rather than one guessed verdict.
+
+### Added
+- **`prune_volumes(all_unused=True)` / `manage prune-volumes --all`** — mirrors `docker volume prune -a` to also remove NAMED unused volumes, matching the existing `prune-images --all` shape. The default stays Docker's safer anonymous-only behaviour.
+- `dangling_volumes` now reports the anonymous/named split (`anonymousCount`, `anonymousReclaimableBytes`, `namedCount`, `namedReclaimableBytes`) and a per-row `anonymous` flag taken from Docker's own `com.docker.volume.anonymous` label rather than a name-shape guess, plus the standard truncation envelope (`returned`/`limit`/`truncated`).
+
 ## v0.8.0 — 2026-08-03
 
 ### Fixed

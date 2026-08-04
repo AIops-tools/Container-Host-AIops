@@ -205,21 +205,27 @@ def prune_images(
 @mcp.tool()
 @governed_tool(risk_level="high")
 @tool_errors("dict")
-def prune_volumes(dry_run: bool = False, target: Optional[str] = None) -> dict:
-    """[WRITE][risk=high] Prune unreferenced (dangling) volumes. No undo.
+def prune_volumes(all_unused: bool = False, dry_run: bool = False,
+                  target: Optional[str] = None) -> dict:
+    """[WRITE][risk=high] Prune unreferenced volumes. No undo.
 
-    dry_run LISTS the volumes that would be removed and the reclaimable bytes
-    before doing anything.
+    Docker removes only ANONYMOUS unused volumes by default (its behaviour since
+    23.0); named unused volumes survive unless all_unused is set. The dry_run
+    preview is scoped by the same flag, so it describes the call you are about
+    to make — and when scoped to the default it still reports the named unused
+    volumes it will not touch (alsoUnusedNamed*) rather than hiding that space.
 
     Args:
+        all_unused: Also remove NAMED unused volumes (docker volume prune -a).
+            Irreversible, and named volumes usually hold data someone meant to keep.
         dry_run: If True, list what would be removed + reclaimable bytes.
         target: Target name from config; omit for the default.
     """
     conn = _get_connection(target)
     if dry_run:
-        preview = ops.preview_prune_volumes(conn)
+        preview = ops.preview_prune_volumes(conn, all_unused=all_unused)
         return {"dryRun": True, **preview}
-    return ops.prune_volumes(conn)
+    return ops.prune_volumes(conn, all_unused=all_unused)
 
 
 @mcp.tool()
