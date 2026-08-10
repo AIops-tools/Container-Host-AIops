@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.9.0 — 2026-08-10
 
 ### Fixed
 - **`prune_volumes`'s preview described a different call than the one it previews.** Since Docker 23.0 a default `POST /volumes/prune` removes only **anonymous** unused volumes, but the preview counted every unreferenced volume: on a real host it promised **7 volumes / 7.1 MiB** where the prune then removed **4 / 65.3 KiB**, leaving the named volumes in place while reporting success — so an operator reclaiming disk got ~0.9% of what was advertised. The preview is now scoped by the same flag as the call, and the named-but-unused space it will not touch is reported separately (`alsoUnusedNamedCount` / `alsoUnusedNamedBytes`) instead of being folded into the promise. The `image_and_volume_bloat` RCA no longer credits a default `prune_volumes()` with space only `all_unused=True` can reclaim. Two unit tests had encoded the defect as the spec and were corrected.
