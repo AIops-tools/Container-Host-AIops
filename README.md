@@ -74,6 +74,21 @@ The three analyses accept injected data for offline analysis, or pull live from 
 
 ## Quick start
 
+### As a Claude Code plugin
+
+One install gives an agent both the skill and the MCP server:
+
+```
+/plugin marketplace add AIops-tools/marketplace
+/plugin install container-host-aiops@aiops-tools
+```
+
+The MCP server is fetched with [uv](https://docs.astral.sh/uv/) and pinned to the
+package version this plugin declares, so an audit row can be traced back to the
+code that wrote it. Credentials are still configured with `container-host-aiops init` — see below.
+
+### As a CLI or standalone MCP server
+
 ```bash
 uv tool install container-host-aiops          # or: pipx install container-host-aiops
 container-host-aiops init                      # wizard: add a Docker/Podman socket or Portainer target

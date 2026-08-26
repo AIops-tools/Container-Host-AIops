@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "container-host-aiops": {
+      "type": "stdio",
+      "command": "uvx",
+      "args": [
+        "--from",
+        "container-host-aiops==0.10.0",
+        "container-host-aiops-mcp"
+      ]
+    }
+  }
+}

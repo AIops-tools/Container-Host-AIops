@@ -1,0 +1,21 @@
+{
+  "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
+  "name": "container-host-aiops",
+  "displayName": "Container Host AIops",
+  "version": "0.10.0",
+  "description": "Governed Docker + Portainer container-host ops: reads, RCA analyses, guarded writes. 38 tools.",
+  "author": {
+    "name": "Wei Zhou",
+    "email": "zhouwei008@gmail.com",
+    "url": "https://github.com/AIops-tools"
+  },
+  "homepage": "https://github.com/AIops-tools/Container-Host-AIops",
+  "repository": "https://github.com/AIops-tools/Container-Host-AIops",
+  "license": "MIT",
+  "keywords": [
+    "aiops",
+    "mcp",
+    "governance",
+    "container-host"
+  ]
+}
