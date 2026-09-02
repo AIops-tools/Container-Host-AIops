@@ -39,8 +39,8 @@ def checked(result: Any) -> Any:
     (2026-08-03): stopping the Portainer container itself was correctly refused
     by the self-lockout guard, and the CLI still exited 0. The dry-run path
     already refused with exit 1, which made the asymmetry worse — the preview
-    was stricter than the real call. Same defect class already fixed in
-    proxmox-, xcpng-, veeam- and truenas-aiops; this repo was never swept.
+    was stricter than the real call. The same defect class had already been
+    fixed in four other tools in the line before this repo was swept for it.
     """
     if not isinstance(result, dict):
         return result
