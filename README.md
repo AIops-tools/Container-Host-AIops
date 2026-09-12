@@ -93,7 +93,7 @@ The same bundle is published on [ClawHub](https://clawhub.ai/plugins), where one
 install delivers the skill and its MCP server together:
 
 ```bash
-openclaw plugins install clawhub:@aiops-tools/container-host-aiops
+openclaw plugins install clawhub:@zw008/container-host-aiops
 openclaw skills info container-host-aiops          # expect: Visible to model: yes
 ```
 

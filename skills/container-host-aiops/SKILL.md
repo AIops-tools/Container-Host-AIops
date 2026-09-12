@@ -67,7 +67,7 @@ container-host-aiops doctor
 Or as an OpenClaw plugin, which installs this skill and its MCP server together:
 
 ```bash
-openclaw plugins install clawhub:@aiops-tools/container-host-aiops
+openclaw plugins install clawhub:@zw008/container-host-aiops
 openclaw skills info container-host-aiops          # expect: Visible to model: yes
 ```
 
