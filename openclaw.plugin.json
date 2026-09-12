@@ -1,0 +1,24 @@
+{
+  "id": "container-host-aiops",
+  "name": "Container Host AIops",
+  "description": "Governed Docker + Portainer container-host ops: reads, RCA analyses, guarded writes. 38 tools.",
+  "skills": [
+    "./skills"
+  ],
+  "mcpServers": {
+    "container-host-aiops": {
+      "transport": "stdio",
+      "command": "uvx",
+      "args": [
+        "--from",
+        "container-host-aiops==0.11.0",
+        "container-host-aiops-mcp"
+      ]
+    }
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

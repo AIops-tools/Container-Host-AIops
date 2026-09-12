@@ -1,0 +1,20 @@
+{
+  "name": "@aiops-tools/container-host-aiops",
+  "version": "0.11.0",
+  "description": "Governed Docker + Portainer container-host ops: reads, RCA analyses, guarded writes. 38 tools.",
+  "private": true,
+  "license": "MIT",
+  "homepage": "https://github.com/AIops-tools/Container-Host-AIops",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AIops-tools/Container-Host-AIops.git"
+  },
+  "openclaw": {
+    "compat": {
+      "pluginApi": ">=2026.3.24-beta.2"
+    },
+    "build": {
+      "openclawVersion": "2026.3.24-beta.2"
+    }
+  }
+}
