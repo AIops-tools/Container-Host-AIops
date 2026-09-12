@@ -2,7 +2,7 @@
   "$schema": "https://anthropic.com/claude-code/plugin.schema.json",
   "name": "container-host-aiops",
   "displayName": "Container Host AIops",
-  "version": "0.11.0",
+  "version": "0.11.1",
   "description": "Governed Docker + Portainer container-host ops: reads, RCA analyses, guarded writes. 38 tools.",
   "author": {
     "name": "Wei Zhou",
