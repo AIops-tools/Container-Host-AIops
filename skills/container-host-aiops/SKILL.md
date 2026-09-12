@@ -64,6 +64,13 @@ container-host-aiops init       # interactive wizard: Docker/Podman socket or Po
 container-host-aiops doctor
 ```
 
+Or as an OpenClaw plugin, which installs this skill and its MCP server together:
+
+```bash
+openclaw plugins install clawhub:@aiops-tools/container-host-aiops
+openclaw skills info container-host-aiops          # expect: Visible to model: yes
+```
+
 ## When to Use This Skill
 
 - Triage a host (`overview`): version + container state rollup + disk headline
