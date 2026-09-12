@@ -71,6 +71,8 @@ openclaw plugins install clawhub:@aiops-tools/container-host-aiops
 openclaw skills info container-host-aiops          # expect: Visible to model: yes
 ```
 
+Needs `uvx` on `PATH`: the MCP server is fetched with uv, pinned to this release.
+
 ## When to Use This Skill
 
 - Triage a host (`overview`): version + container state rollup + disk headline
