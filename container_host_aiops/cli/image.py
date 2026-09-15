@@ -7,7 +7,13 @@ from typing import Annotated
 
 import typer
 
-from container_host_aiops.cli._common import TargetOption, cli_errors, console, get_connection
+from container_host_aiops.cli._common import (
+    TargetOption,
+    audited,
+    cli_errors,
+    console,
+    get_connection,
+)
 
 image_app = typer.Typer(
     name="image",
@@ -20,6 +26,7 @@ ImageArg = Annotated[str, typer.Argument(help="Image id or name:tag")]
 
 @image_app.command("list")
 @cli_errors
+@audited
 def image_list(
     all_images: Annotated[bool, typer.Option("--all", help="Include intermediate layers")] = False,
     target: TargetOption = None,
@@ -33,6 +40,7 @@ def image_list(
 
 @image_app.command("inspect")
 @cli_errors
+@audited
 def image_inspect(image_id: ImageArg, target: TargetOption = None) -> None:
     """Inspect an image plus its build history."""
     from container_host_aiops.ops import images as ops
@@ -43,6 +51,7 @@ def image_inspect(image_id: ImageArg, target: TargetOption = None) -> None:
 
 @image_app.command("dangling")
 @cli_errors
+@audited
 def image_dangling(target: TargetOption = None) -> None:
     """Untagged (dangling) images + reclaimable bytes."""
     from container_host_aiops.ops import images as ops
@@ -53,6 +62,7 @@ def image_dangling(target: TargetOption = None) -> None:
 
 @image_app.command("disk-usage")
 @cli_errors
+@audited
 def image_disk_usage(target: TargetOption = None) -> None:
     """Image disk usage from system/df."""
     from container_host_aiops.ops import images as ops

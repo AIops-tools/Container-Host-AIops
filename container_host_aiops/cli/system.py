@@ -7,7 +7,13 @@ from typing import Annotated
 
 import typer
 
-from container_host_aiops.cli._common import TargetOption, cli_errors, console, get_connection
+from container_host_aiops.cli._common import (
+    TargetOption,
+    audited,
+    cli_errors,
+    console,
+    get_connection,
+)
 
 system_app = typer.Typer(
     name="system",
@@ -18,6 +24,7 @@ system_app = typer.Typer(
 
 @system_app.command("info")
 @cli_errors
+@audited
 def system_info(target: TargetOption = None) -> None:
     """Daemon info: container/image counts, storage driver, kernel, resources."""
     from container_host_aiops.ops import system as ops
@@ -28,6 +35,7 @@ def system_info(target: TargetOption = None) -> None:
 
 @system_app.command("version")
 @cli_errors
+@audited
 def system_version(target: TargetOption = None) -> None:
     """Docker version details (API version, components)."""
     from container_host_aiops.ops import system as ops
@@ -38,6 +46,7 @@ def system_version(target: TargetOption = None) -> None:
 
 @system_app.command("df")
 @cli_errors
+@audited
 def system_df(target: TargetOption = None) -> None:
     """Disk-usage breakdown: images, containers, volumes, build cache."""
     from container_host_aiops.ops import system as ops
@@ -48,6 +57,7 @@ def system_df(target: TargetOption = None) -> None:
 
 @system_app.command("events")
 @cli_errors
+@audited
 def system_events(
     since: Annotated[int, typer.Option(help="Look-back window in seconds")] = 3600,
     event_type: Annotated[str | None, typer.Option("--type", help="Filter event type")] = None,

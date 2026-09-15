@@ -7,7 +7,13 @@ from typing import Annotated
 
 import typer
 
-from container_host_aiops.cli._common import TargetOption, cli_errors, console, get_connection
+from container_host_aiops.cli._common import (
+    TargetOption,
+    audited,
+    cli_errors,
+    console,
+    get_connection,
+)
 
 volume_app = typer.Typer(
     name="volume",
@@ -20,6 +26,7 @@ NameArg = Annotated[str, typer.Argument(help="Volume name")]
 
 @volume_app.command("list")
 @cli_errors
+@audited
 def volume_list(target: TargetOption = None) -> None:
     """List named volumes."""
     from container_host_aiops.ops import volumes as ops
@@ -30,6 +37,7 @@ def volume_list(target: TargetOption = None) -> None:
 
 @volume_app.command("inspect")
 @cli_errors
+@audited
 def volume_inspect(name: NameArg, target: TargetOption = None) -> None:
     """Inspect one named volume."""
     from container_host_aiops.ops import volumes as ops
@@ -40,6 +48,7 @@ def volume_inspect(name: NameArg, target: TargetOption = None) -> None:
 
 @volume_app.command("dangling")
 @cli_errors
+@audited
 def volume_dangling(target: TargetOption = None) -> None:
     """Dangling (unreferenced) volumes + reclaimable bytes."""
     from container_host_aiops.ops import volumes as ops

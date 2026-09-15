@@ -7,7 +7,13 @@ from typing import Annotated
 
 import typer
 
-from container_host_aiops.cli._common import TargetOption, cli_errors, console, get_connection
+from container_host_aiops.cli._common import (
+    TargetOption,
+    audited,
+    cli_errors,
+    console,
+    get_connection,
+)
 
 analyze_app = typer.Typer(
     name="analyze",
@@ -18,6 +24,7 @@ analyze_app = typer.Typer(
 
 @analyze_app.command("restart-loop")
 @cli_errors
+@audited
 def analyze_restart_loop(
     threshold: Annotated[int, typer.Option(help="Restart count = looping")] = 3,
     target: TargetOption = None,
@@ -32,6 +39,7 @@ def analyze_restart_loop(
 
 @analyze_app.command("resource-pressure")
 @cli_errors
+@audited
 def analyze_resource_pressure(
     cpu: Annotated[float, typer.Option(help="CPU%% = over pressure")] = 80.0,
     mem: Annotated[float, typer.Option(help="Memory%% = over pressure")] = 80.0,
@@ -47,6 +55,7 @@ def analyze_resource_pressure(
 
 @analyze_app.command("bloat")
 @cli_errors
+@audited
 def analyze_bloat(target: TargetOption = None) -> None:
     """Dangling images + volumes + build cache → prune candidates."""
     from container_host_aiops.ops import analyses as ops

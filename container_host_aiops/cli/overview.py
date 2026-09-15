@@ -4,10 +4,17 @@ from __future__ import annotations
 
 import json
 
-from container_host_aiops.cli._common import TargetOption, cli_errors, console, get_connection
+from container_host_aiops.cli._common import (
+    TargetOption,
+    audited,
+    cli_errors,
+    console,
+    get_connection,
+)
 
 
 @cli_errors
+@audited
 def overview_cmd(target: TargetOption = None) -> None:
     """One-shot host summary: version + container state rollup + disk headline."""
     from container_host_aiops.ops import overview as ops

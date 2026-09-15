@@ -7,7 +7,13 @@ from typing import Annotated
 
 import typer
 
-from container_host_aiops.cli._common import TargetOption, cli_errors, console, get_connection
+from container_host_aiops.cli._common import (
+    TargetOption,
+    audited,
+    cli_errors,
+    console,
+    get_connection,
+)
 
 stack_app = typer.Typer(
     name="stack",
@@ -20,6 +26,7 @@ StackArg = Annotated[str, typer.Argument(help="Portainer stack id")]
 
 @stack_app.command("endpoints")
 @cli_errors
+@audited
 def stack_endpoints(target: TargetOption = None) -> None:
     """Portainer endpoints (managed hosts)."""
     from container_host_aiops.ops import stacks as ops
@@ -30,6 +37,7 @@ def stack_endpoints(target: TargetOption = None) -> None:
 
 @stack_app.command("list")
 @cli_errors
+@audited
 def stack_list(target: TargetOption = None) -> None:
     """Portainer stacks (Compose/Swarm)."""
     from container_host_aiops.ops import stacks as ops
@@ -40,6 +48,7 @@ def stack_list(target: TargetOption = None) -> None:
 
 @stack_app.command("detail")
 @cli_errors
+@audited
 def stack_detail(stack_id: StackArg, target: TargetOption = None) -> None:
     """One Portainer stack in detail."""
     from container_host_aiops.ops import stacks as ops
@@ -50,6 +59,7 @@ def stack_detail(stack_id: StackArg, target: TargetOption = None) -> None:
 
 @stack_app.command("compose")
 @cli_errors
+@audited
 def stack_compose(target: TargetOption = None) -> None:
     """Compose projects grouped by label with per-stack health (docker/podman)."""
     from container_host_aiops.ops import stacks as ops

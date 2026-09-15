@@ -7,7 +7,13 @@ from typing import Annotated
 
 import typer
 
-from container_host_aiops.cli._common import TargetOption, cli_errors, console, get_connection
+from container_host_aiops.cli._common import (
+    TargetOption,
+    audited,
+    cli_errors,
+    console,
+    get_connection,
+)
 
 network_app = typer.Typer(
     name="network",
@@ -20,6 +26,7 @@ NetArg = Annotated[str, typer.Argument(help="Network id or name")]
 
 @network_app.command("list")
 @cli_errors
+@audited
 def network_list(target: TargetOption = None) -> None:
     """List Docker networks, bucketed by driver."""
     from container_host_aiops.ops import networks as ops
@@ -30,6 +37,7 @@ def network_list(target: TargetOption = None) -> None:
 
 @network_app.command("inspect")
 @cli_errors
+@audited
 def network_inspect(network_id: NetArg, target: TargetOption = None) -> None:
     """Inspect one network (driver, IPAM, attached containers)."""
     from container_host_aiops.ops import networks as ops

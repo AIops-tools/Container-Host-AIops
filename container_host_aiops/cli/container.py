@@ -7,7 +7,13 @@ from typing import Annotated
 
 import typer
 
-from container_host_aiops.cli._common import TargetOption, cli_errors, console, get_connection
+from container_host_aiops.cli._common import (
+    TargetOption,
+    audited,
+    cli_errors,
+    console,
+    get_connection,
+)
 
 container_app = typer.Typer(
     name="container",
@@ -20,6 +26,7 @@ CidArg = Annotated[str, typer.Argument(help="Container id or name")]
 
 @container_app.command("list")
 @cli_errors
+@audited
 def container_list(
     running: Annotated[bool, typer.Option("--running", help="Only running")] = False,
     target: TargetOption = None,
@@ -33,6 +40,7 @@ def container_list(
 
 @container_app.command("inspect")
 @cli_errors
+@audited
 def container_inspect(container_id: CidArg, target: TargetOption = None) -> None:
     """Full inspect of one container."""
     from container_host_aiops.ops import containers as ops
@@ -43,6 +51,7 @@ def container_inspect(container_id: CidArg, target: TargetOption = None) -> None
 
 @container_app.command("logs")
 @cli_errors
+@audited
 def container_logs(
     container_id: CidArg,
     tail: Annotated[int, typer.Option(help="Lines from the end (1..2000)")] = 100,
@@ -63,6 +72,7 @@ def container_logs(
 
 @container_app.command("stats")
 @cli_errors
+@audited
 def container_stats(container_id: CidArg, target: TargetOption = None) -> None:
     """One-shot CPU%/memory% snapshot for a container."""
     from container_host_aiops.ops import containers as ops
@@ -73,6 +83,7 @@ def container_stats(container_id: CidArg, target: TargetOption = None) -> None:
 
 @container_app.command("top")
 @cli_errors
+@audited
 def container_top(container_id: CidArg, target: TargetOption = None) -> None:
     """Processes running inside a container."""
     from container_host_aiops.ops import containers as ops
@@ -83,6 +94,7 @@ def container_top(container_id: CidArg, target: TargetOption = None) -> None:
 
 @container_app.command("restarts")
 @cli_errors
+@audited
 def container_restarts(target: TargetOption = None) -> None:
     """Restart-count + exit-code summary across containers."""
     from container_host_aiops.ops import containers as ops

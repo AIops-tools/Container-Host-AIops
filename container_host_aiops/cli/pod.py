@@ -6,7 +6,13 @@ import json
 
 import typer
 
-from container_host_aiops.cli._common import TargetOption, cli_errors, console, get_connection
+from container_host_aiops.cli._common import (
+    TargetOption,
+    audited,
+    cli_errors,
+    console,
+    get_connection,
+)
 
 pod_app = typer.Typer(
     name="pod",
@@ -17,6 +23,7 @@ pod_app = typer.Typer(
 
 @pod_app.command("list")
 @cli_errors
+@audited
 def pod_list(target: TargetOption = None) -> None:
     """List Podman pods (id, name, status, member containers)."""
     from container_host_aiops.ops import pods as ops
