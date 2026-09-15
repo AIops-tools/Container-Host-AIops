@@ -1,6 +1,6 @@
 {
   "name": "@zw008/container-host-aiops",
-  "version": "0.11.2",
+  "version": "0.11.3",
   "description": "Governed Docker + Portainer container-host ops: reads, RCA analyses, guarded writes. 38 tools.",
   "private": true,
   "license": "MIT",
