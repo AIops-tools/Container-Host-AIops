@@ -15,8 +15,8 @@ import pytest
 import container_host_aiops.governance.audit as audit_mod
 import container_host_aiops.governance.policy as policy_mod
 import container_host_aiops.governance.undo as undo_mod
-from mcp_server import _shared
-from mcp_server.tools import writes as gov_writes
+from container_host_aiops.mcp_server import _shared
+from container_host_aiops.mcp_server.tools import writes as gov_writes
 
 
 @pytest.fixture
@@ -226,7 +226,7 @@ def test_recreate_stack_dry_run_previews(gov_home, monkeypatch):
 
 @pytest.mark.unit
 def test_restart_loop_rca_pulls_live_when_no_containers(gov_home, monkeypatch):
-    from mcp_server.tools import analyses as gov
+    from container_host_aiops.mcp_server.tools import analyses as gov
 
     conn = MagicMock(name="conn")
     monkeypatch.setattr(gov, "_get_connection", lambda target=None: conn)
@@ -240,7 +240,7 @@ def test_restart_loop_rca_pulls_live_when_no_containers(gov_home, monkeypatch):
 
 @pytest.mark.unit
 def test_resource_pressure_pulls_live_when_no_samples(gov_home, monkeypatch):
-    from mcp_server.tools import analyses as gov
+    from container_host_aiops.mcp_server.tools import analyses as gov
 
     conn = MagicMock(name="conn")
     monkeypatch.setattr(gov, "_get_connection", lambda target=None: conn)
@@ -254,7 +254,7 @@ def test_resource_pressure_pulls_live_when_no_samples(gov_home, monkeypatch):
 
 @pytest.mark.unit
 def test_image_and_volume_bloat_pulls_live_when_no_payloads(gov_home, monkeypatch):
-    from mcp_server.tools import analyses as gov
+    from container_host_aiops.mcp_server.tools import analyses as gov
 
     conn = MagicMock(name="conn")
     monkeypatch.setattr(gov, "_get_connection", lambda target=None: conn)
@@ -265,7 +265,7 @@ def test_image_and_volume_bloat_pulls_live_when_no_payloads(gov_home, monkeypatc
 
 @pytest.mark.unit
 def test_image_and_volume_bloat_pure_when_payloads_given(gov_home, monkeypatch):
-    from mcp_server.tools import analyses as gov
+    from container_host_aiops.mcp_server.tools import analyses as gov
 
     monkeypatch.setattr(gov, "_get_connection",
                         lambda target=None: pytest.fail("must not pull"))
@@ -282,7 +282,7 @@ def test_image_and_volume_bloat_pure_when_payloads_given(gov_home, monkeypatch):
 
 @pytest.mark.unit
 def test_image_read_tools_delegate_to_ops(gov_home, monkeypatch):
-    from mcp_server.tools import images as gov
+    from container_host_aiops.mcp_server.tools import images as gov
 
     conn = MagicMock(name="conn")
     conn.docker_get.return_value = [{"Id": "sha256:a", "RepoTags": ["app:1"], "Size": 100}]

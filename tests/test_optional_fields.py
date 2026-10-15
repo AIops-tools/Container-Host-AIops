@@ -193,7 +193,7 @@ def test_container_logs_ask_docker_for_one_extra_line():
 
 @pytest.mark.unit
 def test_undo_list_envelope_measures_truncation(monkeypatch):
-    from mcp_server.tools import undo as undo_tools
+    from container_host_aiops.mcp_server.tools import undo as undo_tools
 
     rows = [
         {

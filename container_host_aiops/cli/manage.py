@@ -1,9 +1,9 @@
 """``container-host-aiops manage`` — guarded writes (dry-run + double-confirm).
 
 Real execution is delegated to the ``@governed_tool``-wrapped functions in
-``mcp_server.tools.writes`` so that CLI writes are audited + undo-recorded on the
-SAME governance path as the MCP tools (the CLI keeps its own dry-run preview and
-human double-confirm on top).
+``container_host_aiops.mcp_server.tools.writes`` so that CLI writes are audited +
+undo-recorded on the SAME governance path as the MCP tools (the CLI keeps its own
+dry-run preview and human double-confirm on top).
 """
 
 from __future__ import annotations
@@ -48,7 +48,7 @@ def restart(
     container_id: CidArg, target: TargetOption = None, dry_run: DryRunOption = False
 ) -> None:
     """Restart a container (dry-run + confirm)."""
-    from mcp_server.tools import writes as gov
+    from container_host_aiops.mcp_server.tools import writes as gov
 
     if dry_run:
         dry_run_result(
@@ -68,7 +68,7 @@ def stop(
     container_id: CidArg, target: TargetOption = None, dry_run: DryRunOption = False
 ) -> None:
     """Stop a running container (undo: start; dry-run + confirm)."""
-    from mcp_server.tools import writes as gov
+    from container_host_aiops.mcp_server.tools import writes as gov
 
     if dry_run:
         # Routed through the governed twin so the preview runs the same guards
@@ -90,7 +90,7 @@ def start(
     container_id: CidArg, target: TargetOption = None, dry_run: DryRunOption = False
 ) -> None:
     """Start a stopped container (undo: stop; dry-run + confirm)."""
-    from mcp_server.tools import writes as gov
+    from container_host_aiops.mcp_server.tools import writes as gov
 
     if dry_run:
         dry_run_result(
@@ -118,7 +118,7 @@ def remove(
     dry_run: DryRunOption = False,
 ) -> None:
     """Remove a container (captures full inspect first; no undo; dry-run + confirm)."""
-    from mcp_server.tools import writes as gov
+    from container_host_aiops.mcp_server.tools import writes as gov
 
     if dry_run:
         dry_run_result(
@@ -145,7 +145,7 @@ def prune_images(
     dry_run: DryRunOption = False,
 ) -> None:
     """Prune images (dangling by default; dry-run lists candidates + confirm)."""
-    from mcp_server.tools import writes as gov
+    from container_host_aiops.mcp_server.tools import writes as gov
 
     if dry_run:
         _emit(gov.prune_images(dangling_only=not all_unused, dry_run=True, target=target))
@@ -164,7 +164,7 @@ def prune_volumes(
     dry_run: DryRunOption = False,
 ) -> None:
     """Prune unreferenced volumes (anonymous only unless --all; dry-run lists candidates)."""
-    from mcp_server.tools import writes as gov
+    from container_host_aiops.mcp_server.tools import writes as gov
 
     if dry_run:
         _emit(gov.prune_volumes(all_unused=all_unused, dry_run=True, target=target))
@@ -184,7 +184,7 @@ def update(
     dry_run: DryRunOption = False,
 ) -> None:
     """Update a container's resource limits (captures prior; undo restores; dry-run + confirm)."""
-    from mcp_server.tools import writes as gov
+    from container_host_aiops.mcp_server.tools import writes as gov
 
     resources = json.loads(resources_json)
     if dry_run:
@@ -209,7 +209,7 @@ def recreate_stack(
     dry_run: DryRunOption = False,
 ) -> None:
     """Recreate (redeploy) a Portainer stack (no undo; dry-run + confirm)."""
-    from mcp_server.tools import writes as gov
+    from container_host_aiops.mcp_server.tools import writes as gov
 
     if dry_run:
         dry_run_result(

@@ -3,8 +3,8 @@
 from typing import Optional
 
 from container_host_aiops.governance import governed_tool
+from container_host_aiops.mcp_server._shared import _get_connection, mcp, tool_errors
 from container_host_aiops.ops import containers as ops
-from mcp_server._shared import _get_connection, mcp, tool_errors
 
 
 @mcp.tool()

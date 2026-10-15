@@ -67,17 +67,17 @@ def test_all_modules_import():
         "container_host_aiops.ops.overview",
         "container_host_aiops.cli",
         "container_host_aiops.cli._root",
-        "mcp_server.server",
-        "mcp_server._shared",
-        "mcp_server.tools.containers",
-        "mcp_server.tools.images",
-        "mcp_server.tools.volumes",
-        "mcp_server.tools.networks",
-        "mcp_server.tools.system",
-        "mcp_server.tools.stacks",
-        "mcp_server.tools.pods",
-        "mcp_server.tools.analyses",
-        "mcp_server.tools.writes",
+        "container_host_aiops.mcp_server.server",
+        "container_host_aiops.mcp_server._shared",
+        "container_host_aiops.mcp_server.tools.containers",
+        "container_host_aiops.mcp_server.tools.images",
+        "container_host_aiops.mcp_server.tools.volumes",
+        "container_host_aiops.mcp_server.tools.networks",
+        "container_host_aiops.mcp_server.tools.system",
+        "container_host_aiops.mcp_server.tools.stacks",
+        "container_host_aiops.mcp_server.tools.pods",
+        "container_host_aiops.mcp_server.tools.analyses",
+        "container_host_aiops.mcp_server.tools.writes",
     ):
         importlib.import_module(name)
 
@@ -141,7 +141,7 @@ def test_cli_leaf_help_triggers_lazy_imports():
 
 @pytest.mark.unit
 def test_mcp_list_tools_exposes_expected_tools():
-    from mcp_server.server import mcp
+    from container_host_aiops.mcp_server.server import mcp
 
     tools = asyncio.run(mcp.list_tools())
     names = {t.name for t in tools}
@@ -151,7 +151,7 @@ def test_mcp_list_tools_exposes_expected_tools():
 @pytest.mark.unit
 def test_every_mcp_tool_is_governed_by_harness():
     """Every registered tool callable must carry the @governed_tool marker."""
-    from mcp_server import _shared
+    from container_host_aiops.mcp_server import _shared
 
     tool_objs = _shared.mcp._tool_manager._tools
     assert EXPECTED_TOOLS <= set(tool_objs), "tool registry incomplete"
@@ -165,7 +165,7 @@ def test_every_mcp_tool_is_governed_by_harness():
 
 @pytest.mark.unit
 def test_write_tools_have_correct_risk_tiers():
-    from mcp_server.tools import writes as w
+    from container_host_aiops.mcp_server.tools import writes as w
 
     for name in HIGH_RISK:
         assert getattr(w, name)._risk_level == "high", name
@@ -184,7 +184,7 @@ def test_risk_level_agrees_with_read_write_docstring_tag():
     16 such mislabels line-wide once, so it is kept even though read-only mode
     (its original motivation) is gone.
     """
-    from mcp_server import server
+    from container_host_aiops.mcp_server import server
 
     untagged, mismatched = [], []
     for name, tool in server.mcp._tool_manager._tools.items():
@@ -223,7 +223,7 @@ def test_update_container_captures_before_state():
 def test_update_container_records_undo_via_harness(monkeypatch):
     """update_container through the harness records an inverse (restore prior limits)."""
     import container_host_aiops.governance.undo as undo_mod
-    from mcp_server.tools import writes as w
+    from container_host_aiops.mcp_server.tools import writes as w
 
     conn = MagicMock(name="conn")
     conn.docker_get.return_value = {"Name": "/svc", "HostConfig": {"Memory": 536870912}}
@@ -255,7 +255,7 @@ def test_update_container_records_undo_via_harness(monkeypatch):
 def test_stop_start_undo_pairing(monkeypatch):
     """stop records a start undo, and start records a stop undo (inverse pair)."""
     import container_host_aiops.governance.undo as undo_mod
-    from mcp_server.tools import writes as w
+    from container_host_aiops.mcp_server.tools import writes as w
 
     conn = MagicMock(name="conn")
     conn.docker_get.return_value = {"Name": "/svc", "State": {"Running": True}}
@@ -284,7 +284,7 @@ def test_stop_start_undo_pairing(monkeypatch):
 @pytest.mark.unit
 def test_prune_images_dry_run_lists_candidates(monkeypatch):
     """prune_images dry_run lists what would be removed + reclaimable bytes, no post."""
-    from mcp_server.tools import writes as w
+    from container_host_aiops.mcp_server.tools import writes as w
 
     conn = MagicMock(name="conn")
     conn.docker_get.return_value = [{"Id": "sha256:x", "Size": 500}]
@@ -305,7 +305,7 @@ def test_dry_run_gates_destructive_cli(monkeypatch):
     the governed twin so it lands an audit row like any other call.
     """
     from container_host_aiops.cli import app
-    from mcp_server.tools import writes as gov
+    from container_host_aiops.mcp_server.tools import writes as gov
 
     monkeypatch.setenv("CONTAINER_HOST_AUDIT_APPROVED_BY", "tester")
     conn = MagicMock(name="conn")
@@ -323,7 +323,7 @@ def test_mcp_write_dry_run_does_not_execute():
     """A write tool's dry_run returns a preview without calling the API."""
     from unittest.mock import patch
 
-    from mcp_server.tools import writes as w
+    from container_host_aiops.mcp_server.tools import writes as w
 
     conn = MagicMock(name="conn")
     with patch.object(w, "_get_connection", lambda target=None: conn):

@@ -140,7 +140,7 @@ def test_real_write_tool_persists_priorstate_undo(gov_home, monkeypatch):
     """End-to-end through a REAL product write tool: stop_container must
     capture the container's prior running state before stopping and persist
     the start-undo on disk."""
-    from mcp_server.tools import writes as gov
+    from container_host_aiops.mcp_server.tools import writes as gov
 
     conn = _FakeConn({"Id": "abc123", "Name": "/web", "State": {"Running": True}})
     monkeypatch.setattr(gov, "_get_connection", lambda target=None: conn)
@@ -378,7 +378,7 @@ def test_self_lockout_refusal_writes_no_undo_and_audits_as_error(gov_home, monke
     and must leave NO undo token behind — a refused write changed nothing, so a
     recorded inverse would be a lie.
     """
-    from mcp_server.tools import writes as gov
+    from container_host_aiops.mcp_server.tools import writes as gov
 
     conn = _FakeConn({"Id": "p1", "Name": "/portainer",
                       "Config": {"Image": "portainer/portainer-ce:2.19.4"}})

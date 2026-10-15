@@ -140,7 +140,7 @@ def _control_plane_reason(conn: Any, info: dict) -> str:
 def _refuse_self_lockout(conn: Any, container_id: str, info: dict, verb: str, cost: str) -> None:
     """Raise ``SelfLockout`` when ``container_id`` is this target's Portainer API.
 
-    Keep ``cost`` short. ``mcp_server._shared._safe_error`` truncates a
+    Keep ``cost`` short. ``container_host_aiops.mcp_server._shared._safe_error`` truncates a
     passed-through ValueError at ``_ERROR_MAX`` and the remedy sentence comes
     last, so an over-long ``cost`` truncates away the instruction the caller
     needs. These messages are held to 300 characters, well inside the current

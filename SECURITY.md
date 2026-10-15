@@ -77,7 +77,7 @@ services.
 ## Static Analysis
 
 ```bash
-uvx bandit -r container_host_aiops/ mcp_server/
+uvx bandit -r container_host_aiops/
 uv run ruff check .
 ```
 

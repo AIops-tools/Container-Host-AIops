@@ -14,8 +14,8 @@ irreversible); restart / stop / start / update_container = medium.
 from typing import Any, Optional
 
 from container_host_aiops.governance import governed_tool
+from container_host_aiops.mcp_server._shared import _get_connection, mcp, tool_errors
 from container_host_aiops.ops import writes as ops
-from mcp_server._shared import _get_connection, mcp, tool_errors
 
 _SKILL = "container-host-aiops"
 

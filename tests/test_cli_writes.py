@@ -1,7 +1,7 @@
 """CLI confirmed-write path — past dry-run, through governance, onto disk.
 
 The CLI write commands delegate real execution to the ``@governed_tool``
-functions in ``mcp_server.tools.writes``. These tests drive ``manage stop``
+functions in ``container_host_aiops.mcp_server.tools.writes``. These tests drive ``manage stop``
 PAST the dry-run branch and the double-confirm prompts and assert the call
 really went through the governed path (audit row on disk) — the regression
 test for the "CLI writes were unaudited" line-wide fix.
@@ -35,7 +35,7 @@ def gov_home(tmp_path, monkeypatch):
 @pytest.fixture
 def docker_conn(monkeypatch):
     """A fake Docker connection wired into the governed write module."""
-    from mcp_server.tools import writes as gov
+    from container_host_aiops.mcp_server.tools import writes as gov
 
     conn = MagicMock(name="conn")
     conn.docker_get.return_value = {"Id": "abc123", "Name": "/web", "State": {"Running": True}}
@@ -97,7 +97,7 @@ def test_cli_manage_stop_dry_run_records_no_undo_token(gov_home, docker_conn):
 def test_cli_manage_stop_dry_run_on_portainer_self_refuses_nonzero(gov_home, monkeypatch):
     """A refused preview must teach and exit non-zero, like a refused real write."""
     from container_host_aiops.cli import app
-    from mcp_server.tools import writes as gov
+    from container_host_aiops.mcp_server.tools import writes as gov
 
     conn = MagicMock(name="conn")
     conn.docker_get.return_value = {"Name": "/portainer",
@@ -124,7 +124,7 @@ def test_cli_manage_stop_refused_real_write_exits_nonzero(gov_home, monkeypatch)
     2.39.5 by asking it to stop the Portainer container it proxies through.
     """
     from container_host_aiops.cli import app
-    from mcp_server.tools import writes as gov
+    from container_host_aiops.mcp_server.tools import writes as gov
 
     conn = MagicMock(name="conn")
     conn.docker_get.return_value = {"Name": "/portainer",
@@ -255,7 +255,7 @@ def test_cli_manage_recreate_stack_dry_run_is_audited_but_never_writes(gov_home,
     The preview runs through the governed twin: it reads, it audits, it does not
     mutate."""
     from container_host_aiops.cli import app
-    from mcp_server.tools import writes as gov
+    from container_host_aiops.mcp_server.tools import writes as gov
 
     conn = MagicMock(name="conn")
     monkeypatch.setattr(gov, "_get_connection", lambda target=None: conn)

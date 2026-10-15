@@ -17,8 +17,8 @@ import container_host_aiops.governance.audit as audit_mod
 import container_host_aiops.governance.policy as policy_mod
 import container_host_aiops.governance.undo as undo_mod
 from container_host_aiops.governance import governed_tool
-from mcp_server._shared import mcp
-from mcp_server.tools import undo as gov
+from container_host_aiops.mcp_server._shared import mcp
+from container_host_aiops.mcp_server.tools import undo as gov
 
 _CALLS: list[dict] = []
 _TARGETS: list = []
@@ -216,7 +216,7 @@ def test_corrupt_undo_params_refuses_instead_of_replaying_with_no_arguments(monk
     unintended operation — and the dry-run previewed it as a legitimate no-arg
     inverse. The recorded intent is gone, so refusing is the only honest answer.
     """
-    from mcp_server.tools import undo as u
+    from container_host_aiops.mcp_server.tools import undo as u
 
     class _Store:
         def get(self, undo_id):
@@ -231,7 +231,7 @@ def test_corrupt_undo_params_refuses_instead_of_replaying_with_no_arguments(monk
 
 @pytest.mark.unit
 def test_non_object_undo_params_are_refused_too(monkeypatch):
-    from mcp_server.tools import undo as u
+    from container_host_aiops.mcp_server.tools import undo as u
 
     class _Store:
         def get(self, undo_id):
@@ -246,7 +246,7 @@ def test_non_object_undo_params_are_refused_too(monkeypatch):
 @pytest.mark.unit
 def test_resolve_tool_loads_full_registry_under_cli_only_import():
     """Regression (live-found 2026-07-31): CLI ``undo apply`` runs in a process
-    that imports only ``mcp_server.tools.undo`` — every write tool is imported
+    that imports only ``container_host_aiops.mcp_server.tools.undo`` — every write tool is imported
     lazily inside its own CLI command, so the inverse was "not registered" and
     CLI-initiated undo failed for every write tool. ``_resolve_tool`` must force
     a full server load on a miss.
@@ -260,8 +260,8 @@ def test_resolve_tool_loads_full_registry_under_cli_only_import():
 
     script = textwrap.dedent(
         """
-        from mcp_server._shared import mcp
-        import mcp_server.tools.undo as u
+        from container_host_aiops.mcp_server._shared import mcp
+        import container_host_aiops.mcp_server.tools.undo as u
         before = set(mcp._tool_manager._tools)
         # A miss must trigger the full-registry load, not just return None.
         u._resolve_tool("__definitely_not_a_tool__")
