@@ -282,3 +282,7 @@ finish "Still open on Docker" before calling the Docker path fully covered.
   are where the two remaining platforms diverge most from Docker — weight the run there.
 - Add each platform's result to the product-line verification ledger once green, so the
   central "verification debt" list stays accurate.
+
+## Governance hardening — local synthetic verification (2026-10-30)
+
+The shared governance tests exercise a durable `pending` row before a write, refusal when the audit DB cannot persist that row, a visible pending row after finalization failure, explicit reconciliation to `unknown`, async/preview parity, result minimization, and metadata-only telemetry with `AIOPS_WORKFLOW_ID`. The tests use a temporary SQLite DB and synthetic tools; they do not claim a new live upstream write was performed. Existing audit rows and rotated archives from earlier releases are not automatically scrubbed. A pending intent from another process is never auto-reconciled. On POSIX the rotation/intent lock spans processes; on Windows it currently protects only threads in this process.

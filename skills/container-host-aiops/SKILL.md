@@ -32,6 +32,8 @@ compatibility: >
 
 # Container Host AIops
 
+> **Audit availability:** Real writes require a durable audit intent. Reads and previews can continue if audit storage fails; check the warning and audit health before relying on their audit trail.
+
 > **Disclaimer**: Community-maintained open-source project, **not affiliated with, endorsed by, or sponsored by Docker, Inc., Portainer.io, or any container-platform vendor.** Product and trademark names belong to their owners. Source at [github.com/AIops-tools/Container-Host-AIops](https://github.com/AIops-tools/Container-Host-AIops) under the MIT license.
 
 Governed Docker + Portainer + Podman container-host operations — **38 MCP tools**, every one wrapped with the bundled `@governed_tool` harness: a local unified audit log under `~/.container-host-aiops/` (MCP + CLI alike), a runaway/budget safety guard, and undo-token recording. It records every operation; whether a write is permitted is the agent's or the account's call, not the skill's. A Docker target speaks the Docker Engine API over a unix socket or TCP; a Portainer target speaks the Portainer API (and proxies Docker); a Podman target speaks over its rootful/rootless socket (Docker-compat + libpod). The Portainer API token is stored **encrypted** (`~/.container-host-aiops/secrets.enc`, Fernet + scrypt) — never plaintext on disk; a local Docker/Podman socket needs no secret.
@@ -187,7 +189,7 @@ of the account you connect it with (a read-only Docker socket, a Portainer
 account without write scope — writes then fail at the server). There is no
 read-only switch, policy file, or approval gate.
 
-- **Audit is the guarantee, and it is not bypassable.** Every operation — MCP and CLI alike — is logged to `~/.container-host-aiops/audit.db` (relocatable via `CONTAINER_HOST_AIOPS_HOME`): params, result, status, duration, and the risk tier. The CLI writes the same row the MCP path does.
+- **Audit is the guarantee, and it is not bypassable.** Every operation — MCP and CLI alike — is logged to `~/.container-host-aiops/audit.db` (relocatable via `CONTAINER_HOST_AIOPS_HOME`): params, outcome summary, status, duration, and the risk tier. The CLI writes the same row the MCP path does.
 - `CONTAINER_HOST_AUDIT_APPROVED_BY` / `CONTAINER_HOST_AUDIT_RATIONALE` are optional annotations recorded on the audit row (who/why); they are never required and never block.
 - **Runaway guard** — a safety backstop, not authorization: the same call looped in a tight window trips a circuit breaker. Disable with `CONTAINER_HOST_RUNAWAY_MAX=0`.
 - Writes support `--dry-run` / `dry_run=True` and double confirmation at the CLI; prune previews list what would be removed + reclaimable bytes.

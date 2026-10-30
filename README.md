@@ -2,6 +2,8 @@
 
 # Container Host AIops
 
+> **Audit availability:** Real writes require a committed `pending` audit row and stop before contacting the platform if storage is unavailable. Reads and previews may continue with a warning; new audit rows store outcome summaries rather than full responses.
+
 > **Disclaimer**: Community-maintained open-source project. **Not affiliated with, endorsed by, or sponsored by Docker, Inc., Portainer.io, or any container-platform vendor.** "Docker", "Portainer" and all product/trademark names belong to their respective owners. MIT licensed.
 
 Governed AI-ops for **non-orchestrator container hosts** — the **Docker Engine API** (over a local unix socket or a TCP host), **Portainer** (its management API, which also proxies Docker), and **Podman** (a rootful/rootless service socket speaking the Docker-compatible API plus libpod-native endpoints) — with a **built-in governance harness**: a unified audit log over both MCP and CLI, a runaway/budget safety guard, and undo-token recording. It records every operation; it does not decide whether a write is permitted — that is the agent's or the account's call. **Multi-platform by construction**: a registry keyed by `platform` means a per-target `platform` field (`docker` / `portainer` / `podman`) selects the API shape, and another host family could be added later without touching the ops/CLI/MCP layers. Exercised against a live Docker Engine 27.5.1 daemon (doctor, overview, the three flagship analyses, and a governed stop_container with audit + undo recorded); the Portainer and Podman API paths are covered by the mock suite only.
@@ -130,7 +132,7 @@ container-host-aiops-mcp
 Every operation — MCP **and** CLI — passes through the bundled `@governed_tool`
 harness. It records; it does not authorize (see above).
 
-- **Audit** — every call (params, result, status, duration, risk tier, and any operator-supplied approver/rationale) is logged to `~/.container-host-aiops/audit.db` (relocatable via `CONTAINER_HOST_AIOPS_HOME`). The CLI writes the same row the MCP path does — there is no unaudited entry point.
+- **Audit** — every call (params, outcome summary, status, duration, risk tier, and any operator-supplied approver/rationale) is logged to `~/.container-host-aiops/audit.db` (relocatable via `CONTAINER_HOST_AIOPS_HOME`). The CLI writes the same row the MCP path does — there is no unaudited entry point.
 - **Runaway guard** — a safety backstop, not an authorization gate: the same call hammered in a tight loop trips a circuit breaker so a stuck agent can't burn unbounded calls/time. Disable with `CONTAINER_HOST_RUNAWAY_MAX=0`; optional hard ceilings via `CONTAINER_HOST_MAX_TOOL_CALLS` / `CONTAINER_HOST_MAX_TOOL_SECONDS`.
 - **Undo recording** — reversible writes record an inverse descriptor built from the fetched before-state.
 - **Risk tier** — a descriptive label on the audit row derived from `risk_level`; it gates nothing.
